@@ -42,6 +42,35 @@ export function DataExplorerPage() {
     null
   );
 
+  // Resizable detail panel
+  const [detailWidth, setDetailWidth] = useState(384); // default w-96 = 24rem = 384px
+  const isDragging = useRef(false);
+
+  const startDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    const startX = e.clientX;
+    const startWidth = detailWidth;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = startX - ev.clientX; // drag left = wider
+      const newWidth = Math.min(Math.max(startWidth + delta, 240), 800);
+      setDetailWidth(newWidth);
+    };
+    const onUp = () => {
+      isDragging.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
   // Semantic search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchField, setSearchField] = useState("");
@@ -392,7 +421,16 @@ export function DataExplorerPage() {
 
         {/* Detail panel */}
         {selectedRow && (
-          <div className="w-96 border-l overflow-auto">
+          <>
+            {/* Drag handle */}
+            <div
+              className="w-1 cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors shrink-0"
+              onMouseDown={startDrag}
+            />
+            <div
+              className="border-l overflow-auto shrink-0"
+              style={{ width: detailWidth }}
+            >
             <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between">
               <h3 className="font-semibold">行详情</h3>
               <div className="flex gap-1">
@@ -457,7 +495,8 @@ export function DataExplorerPage() {
                 </div>
               ))}
             </div>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>

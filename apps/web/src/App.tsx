@@ -6,6 +6,7 @@ import { ExplorerPage } from "./pages/ExplorerPage";
 import { DataExplorerPage } from "./pages/DataExplorerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CommandPalette } from "./components/CommandPalette";
+import { Toaster } from "./components/Toaster";
 
 export default function App() {
   const { theme, currentPage, commandPaletteOpen, setCommandPaletteOpen } =
@@ -46,6 +47,7 @@ export default function App() {
       <Sidebar />
       <main className="flex-1 overflow-auto">{renderPage()}</main>
       <CommandPalette />
+      <Toaster />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
 import { translateError } from "@/lib/errors";
+import { toast } from "@/hooks/use-toast";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { ColumnVisibility } from "@/components/ColumnVisibility";
 import { JsonViewer } from "@/components/JsonViewer";
@@ -205,7 +206,11 @@ export function DataExplorerPage() {
         try {
           row[field.name] = JSON.parse(raw);
         } catch {
-          alert(`字段 ${field.name} 的向量格式不正确，请输入 JSON 数组，如 [0.1, 0.2, ...]`);
+          toast({
+            variant: "destructive",
+            title: "格式错误",
+            description: `字段 ${field.name} 的向量格式不正确，请输入 JSON 数组，如 [0.1, 0.2, ...]`,
+          });
           setInserting(false);
           return;
         }
@@ -219,7 +224,11 @@ export function DataExplorerPage() {
         try {
           row[field.name] = JSON.parse(raw);
         } catch {
-          alert(`字段 ${field.name} 的 JSON 格式不正确`);
+          toast({
+            variant: "destructive",
+            title: "格式错误",
+            description: `字段 ${field.name} 的 JSON 格式不正确`,
+          });
           setInserting(false);
           return;
         }
@@ -241,7 +250,11 @@ export function DataExplorerPage() {
       setInsertData({});
       loadData();
     } else {
-      alert("插入失败：" + translateError(res.error));
+      toast({
+        variant: "destructive",
+        title: "插入失败",
+        description: translateError(res.error),
+      });
     }
   };
 
@@ -264,7 +277,11 @@ export function DataExplorerPage() {
       setDeleteConfirmText("");
       loadData();
     } else {
-      alert("删除失败：" + translateError(res.error));
+      toast({
+        variant: "destructive",
+        title: "删除失败",
+        description: translateError(res.error),
+      });
     }
   };
 
@@ -273,7 +290,10 @@ export function DataExplorerPage() {
     if (!searchQuery.trim() || !activeConnectionId || !selectedCollection)
       return;
     if (!embeddingConfig.apiKey) {
-      alert("请先在设置中配置 Embedding API");
+      toast({
+        title: "未配置 Embedding",
+        description: "请先在设置中配置 Embedding API",
+      });
       setCurrentPage("settings");
       return;
     }
@@ -285,7 +305,11 @@ export function DataExplorerPage() {
       // Step 1: Embed the query
       const embedRes = await api.embed(searchQuery, embeddingConfig);
       if (!embedRes.success) {
-        alert("Embedding 失败：" + translateError(embedRes.error));
+        toast({
+          variant: "destructive",
+          title: "Embedding 失败",
+          description: translateError(embedRes.error),
+        });
         setSearching(false);
         return;
       }
@@ -310,10 +334,18 @@ export function DataExplorerPage() {
           (searchRes.data as typeof searchResults) || []
         );
       } else {
-        alert("搜索失败：" + translateError(searchRes.error));
+        toast({
+          variant: "destructive",
+          title: "搜索失败",
+          description: translateError(searchRes.error),
+        });
       }
     } catch (err) {
-      alert("搜索出错：" + translateError((err as Error).message));
+      toast({
+        variant: "destructive",
+        title: "搜索出错",
+        description: translateError((err as Error).message),
+      });
     }
     setSearching(false);
   };

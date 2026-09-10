@@ -8,12 +8,23 @@ import {
 } from "../services/milvus.js";
 
 export async function connectionRoutes(app: FastifyInstance) {
-  // Connect to Milvus
+  // Connect to Milvus — verify connectivity before saving
   app.post<{ Body: ConnectionConfig }>(
     "/connect",
     async (req, reply): Promise<ApiResponse> => {
       try {
         const config = req.body;
+
+        // Test connectivity first — don't save if unreachable
+        const testResult = await testConnection(config);
+        if (!testResult.ok) {
+          return reply.code(502).send({
+            success: false,
+            error: testResult.error || "无法连接到 Milvus 服务器",
+          });
+        }
+
+        // Only create the connection after verification passes
         const connectionId = createConnection(config);
         return { success: true, data: { connectionId } };
       } catch (err: unknown) {

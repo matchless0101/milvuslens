@@ -30,6 +30,7 @@ import {
   Table2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import type { CollectionInfo } from "@milvuslens/shared";
 
 export function ExplorerPage() {
@@ -72,6 +73,11 @@ export function ExplorerPage() {
     metricType: "COSINE",
   });
   const [creatingCol, setCreatingCol] = useState(false);
+
+  // Delete confirmation state
+  const [deleteDbName, setDeleteDbName] = useState<string | null>(null);
+  const [deleteColName, setDeleteColName] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Load databases
   const loadDatabases = async () => {
@@ -137,8 +143,10 @@ export function ExplorerPage() {
 
   const handleDeleteDb = async (name: string) => {
     if (!activeConnectionId) return;
-    if (!confirm(`确定删除数据库 "${name}" 吗？`)) return;
+    setDeleting(true);
     await api.deleteDatabase(activeConnectionId, name);
+    setDeleting(false);
+    setDeleteDbName(null);
     if (selectedDatabase === name) setSelectedDatabase(null);
     loadDatabases();
   };
@@ -170,8 +178,10 @@ export function ExplorerPage() {
 
   const handleDeleteCol = async (name: string) => {
     if (!activeConnectionId) return;
-    if (!confirm(`确定删除集合 "${name}" 吗？此操作不可恢复。`)) return;
+    setDeleting(true);
     await api.deleteCollection(activeConnectionId, name);
+    setDeleting(false);
+    setDeleteColName(null);
     loadCollections();
   };
 
@@ -272,7 +282,7 @@ export function ExplorerPage() {
                   className="opacity-0 group-hover:opacity-100 hover:text-destructive shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteDb(db);
+                    setDeleteDbName(db);
                   }}
                 >
                   <Trash2 className="h-3 w-3" />
@@ -481,7 +491,7 @@ export function ExplorerPage() {
                     <Button size="sm" variant="ghost" onClick={() => handleReleaseCol(col.name)} title="释放">
                       <Square className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDeleteCol(col.name)}>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleteColName(col.name)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -491,6 +501,34 @@ export function ExplorerPage() {
           )}
         </div>
       </div>
+
+      <ConfirmDeleteDialog
+        open={deleteDbName !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDbName(null);
+        }}
+        title="删除数据库"
+        description={`将永久删除数据库 "${deleteDbName}" 及其中的所有集合与数据，此操作不可恢复。`}
+        confirmText={deleteDbName || ""}
+        loading={deleting}
+        onConfirm={() => {
+          if (deleteDbName) void handleDeleteDb(deleteDbName);
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={deleteColName !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteColName(null);
+        }}
+        title="删除集合"
+        description={`将永久删除集合 "${deleteColName}" 及其中全部数据，此操作不可恢复。`}
+        confirmText={deleteColName || ""}
+        loading={deleting}
+        onConfirm={() => {
+          if (deleteColName) void handleDeleteCol(deleteColName);
+        }}
+      />
     </div>
   );
 }

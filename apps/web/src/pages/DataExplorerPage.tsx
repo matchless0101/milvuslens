@@ -58,6 +58,7 @@ export function DataExplorerPage() {
   // Delete dialog state
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteFilter, setDeleteFilter] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
   // Selected row for detail panel
@@ -222,10 +223,9 @@ export function DataExplorerPage() {
     }
   };
 
-  // Delete data handler
+  // Delete data handler — caller must have already confirmed via typed phrase
   const handleDelete = async () => {
     if (!activeConnectionId || !selectedCollection || !deleteFilter.trim()) return;
-    if (!confirm(`确定要删除匹配以下条件的数据吗？\n\n${deleteFilter}\n\n此操作不可恢复！`)) return;
 
     setDeleting(true);
     const res = await api.deleteData(activeConnectionId, selectedCollection, deleteFilter.trim());
@@ -234,6 +234,7 @@ export function DataExplorerPage() {
     if (res.success) {
       setDeleteOpen(false);
       setDeleteFilter("");
+      setDeleteConfirmText("");
       loadData();
     } else {
       alert("删除失败：" + translateError(res.error));
@@ -534,7 +535,16 @@ export function DataExplorerPage() {
             </Dialog>
 
             {/* Delete button */}
-            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <Dialog
+              open={deleteOpen}
+              onOpenChange={(open) => {
+                setDeleteOpen(open);
+                if (!open) {
+                  setDeleteFilter("");
+                  setDeleteConfirmText("");
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
                   <Trash2 className="h-4 w-4 mr-1" />
@@ -562,9 +572,19 @@ export function DataExplorerPage() {
                       将删除匹配: {deleteFilter} 的所有数据
                     </div>
                   )}
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      输入 <span className="font-mono font-semibold">删除</span> 以确认
+                    </Label>
+                    <Input
+                      placeholder="删除"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    />
+                  </div>
                   <Button
                     onClick={handleDelete}
-                    disabled={deleting || !deleteFilter.trim()}
+                    disabled={deleting || !deleteFilter.trim() || deleteConfirmText.trim() !== "删除"}
                     variant="destructive"
                     className="w-full"
                   >

@@ -249,9 +249,9 @@ export function DataExplorerPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Main content: table + search */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Semantic search panel */}
+          {/* Semantic search panel - toggleable */}
           {showSearchPanel && (
-            <div className="border-b p-4 bg-muted/30 space-y-3">
+            <div className="border-b p-4 bg-muted/30">
               <div className="flex items-end gap-3">
                 <div className="flex-1 space-y-1">
                   <Label className="text-xs">输入问题</Label>
@@ -295,25 +295,6 @@ export function DataExplorerPage() {
                 </Button>
               </div>
 
-              {/* Filter row - below search input */}
-              <div className="flex items-center gap-3">
-                <Label className="text-xs w-16 shrink-0">数据筛选</Label>
-                <FilterBuilder
-                  fields={scalarFields}
-                  filter={filter}
-                  onFilterChange={setFilter}
-                  onApply={() => {
-                    setPage(0);
-                    loadData();
-                  }}
-                />
-                {filter && (
-                  <span className="text-xs text-muted-foreground truncate flex-1">
-                    {filter}
-                  </span>
-                )}
-              </div>
-
               {/* Search results */}
               {searchResults.length > 0 && (
                 <div className="mt-3 space-y-2 max-h-48 overflow-auto">
@@ -349,6 +330,28 @@ export function DataExplorerPage() {
               )}
             </div>
           )}
+
+          {/* Filter row - always visible, independent of search panel */}
+          <div className="border-b px-4 py-2 flex items-center gap-3 bg-background">
+            <FilterBuilder
+              fields={scalarFields}
+              filter={filter}
+              onFilterChange={setFilter}
+              onApply={() => {
+                setPage(0);
+                loadData();
+              }}
+            />
+            {filter ? (
+              <span className="text-xs text-muted-foreground truncate">
+                {filter}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                无筛选条件
+              </span>
+            )}
+          </div>
 
           {/* Data table */}
           <div ref={tableRef} className="flex-1 overflow-auto">

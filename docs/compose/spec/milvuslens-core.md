@@ -1,14 +1,20 @@
 ---
 feature: milvuslens-core
-status: designed
+status: delivered
 updated: 2026-09-10
 branch: feat/core-features
-commits: 
+commits: f483857..d3af708
 ---
 
 # MilvusLens Core Features
 
 ## Report
+
+**What was built** — MilvusLens is a lightweight open-source Milvus management tool with a React + shadcn/ui frontend and Fastify backend. It supports connecting to Milvus 2.4+/2.5+ servers, browsing databases and collections, creating collections with field/index configuration, viewing data in a paginated table with row detail panel, and semantic search (input question → OpenAI-compatible embedding → vector search → similarity-ranked results). Dark/light theme and Ctrl+K command palette included.
+
+**Verification** — `pnpm --filter @milvuslens/server typecheck` PASS, `pnpm --filter @milvuslens/web typecheck` PASS, `pnpm --filter @milvuslens/web build` PASS (313KB JS bundle).
+
+**Journey log** — Attu v2.6+ is proprietary; only v2.5.x is open source. Milvus SDK types required several `as unknown as` casts due to union types. Electron shell deferred to follow-up.
 
 ## [S1] Problem
 

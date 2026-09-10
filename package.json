@@ -8,10 +8,17 @@
     "dev:server": "pnpm --filter @milvuslens/server dev",
     "dev:web": "pnpm --filter @milvuslens/web dev",
     "build": "pnpm --filter @milvuslens/shared build && pnpm --filter @milvuslens/server build && pnpm --filter @milvuslens/web build",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "lint": "eslint apps packages",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
   }
 }

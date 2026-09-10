@@ -26,11 +26,27 @@ export async function dataRoutes(app: FastifyInstance) {
 
       const res = await client.query(queryParams as unknown as Parameters<typeof client.query>[0]);
 
+      // Without a filter, collection stats give the real total row count.
+      // With a filter Milvus has no cheap COUNT(*), so fall back to page length.
+      let total = res.data?.length || 0;
+      if (!filter) {
+        try {
+          const statsParams: Record<string, unknown> = { collection_name: name };
+          if (db) statsParams.db_name = db;
+          const stats = await client.getCollectionStats(statsParams as unknown as Parameters<typeof client.getCollectionStats>[0]);
+          const statsArr = (stats as unknown as { stats?: Array<{ key: string; value: string | number }> }).stats || [];
+          const rowCount = Number(statsArr.find((s) => s.key === "row_count")?.value);
+          if (Number.isFinite(rowCount)) total = rowCount;
+        } catch {
+          // keep page length
+        }
+      }
+
       return {
         success: true,
         data: {
           data: res.data || [],
-          total: res.data?.length || 0,
+          total,
         },
       };
     } catch (err: unknown) {

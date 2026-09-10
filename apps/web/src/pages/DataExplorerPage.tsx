@@ -47,6 +47,7 @@ export function DataExplorerPage() {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
+  const [total, setTotal] = useState<number | null>(null);
   const [filter, setFilter] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [schema, setSchema] = useState<any>(null);
@@ -160,9 +161,10 @@ export function DataExplorerPage() {
     );
     setLoading(false);
     if (res.success) {
-      const data = res.data as { data: Record<string, unknown>[] };
+      const data = res.data as { data: Record<string, unknown>[]; total?: number };
       const newRows = data?.data || [];
       setRows(newRows);
+      setTotal(typeof data?.total === "number" ? data.total : null);
       // Initialize visible columns on first load
       if (visibleColumns.length === 0 && newRows.length > 0) {
         setVisibleColumns(Object.keys(newRows[0]));
@@ -700,6 +702,7 @@ export function DataExplorerPage() {
               </Select>
               <span className="text-xs text-muted-foreground">
                 第 {page + 1} 页 · {rows.length} 条
+                {total !== null && !filter ? ` · 共 ${total.toLocaleString()} 条` : ""}
               </span>
             </div>
             <div className="flex gap-1">
@@ -714,7 +717,11 @@ export function DataExplorerPage() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={rows.length < pageSize}
+                disabled={
+                  total !== null && !filter
+                    ? (page + 1) * pageSize >= total
+                    : rows.length < pageSize
+                }
                 onClick={() => setPage(page + 1)}
               >
                 <ChevronRight className="h-4 w-4" />

@@ -37,6 +37,7 @@ export function DataExplorerPage() {
   const {
     activeConnectionId,
     selectedCollection,
+    selectedDatabase,
     setCurrentPage,
     embeddingConfig,
   } = useAppStore();
@@ -113,7 +114,8 @@ export function DataExplorerPage() {
     if (!activeConnectionId || !selectedCollection) return;
     const res = await api.getCollectionSchema(
       activeConnectionId,
-      selectedCollection
+      selectedCollection,
+      selectedDatabase || undefined
     );
     if (res.success) {
       setSchema(res.data);
@@ -139,11 +141,16 @@ export function DataExplorerPage() {
   const loadData = async () => {
     if (!activeConnectionId || !selectedCollection) return;
     setLoading(true);
-    const res = await api.queryData(activeConnectionId, selectedCollection, {
-      filter: filter || undefined,
-      limit: pageSize,
-      offset: page * pageSize,
-    });
+    const res = await api.queryData(
+      activeConnectionId,
+      selectedCollection,
+      {
+        filter: filter || undefined,
+        limit: pageSize,
+        offset: page * pageSize,
+      },
+      selectedDatabase || undefined
+    );
     setLoading(false);
     if (res.success) {
       const data = res.data as { data: Record<string, unknown>[] };
@@ -211,7 +218,12 @@ export function DataExplorerPage() {
       }
     }
 
-    const res = await api.insertData(activeConnectionId, selectedCollection, [row]);
+    const res = await api.insertData(
+      activeConnectionId,
+      selectedCollection,
+      [row],
+      selectedDatabase || undefined
+    );
     setInserting(false);
 
     if (res.success) {
@@ -228,7 +240,12 @@ export function DataExplorerPage() {
     if (!activeConnectionId || !selectedCollection || !deleteFilter.trim()) return;
 
     setDeleting(true);
-    const res = await api.deleteData(activeConnectionId, selectedCollection, deleteFilter.trim());
+    const res = await api.deleteData(
+      activeConnectionId,
+      selectedCollection,
+      deleteFilter.trim(),
+      selectedDatabase || undefined
+    );
     setDeleting(false);
 
     if (res.success) {
@@ -274,7 +291,8 @@ export function DataExplorerPage() {
           vectorField: searchField,
           topK,
           metricType,
-        }
+        },
+        selectedDatabase || undefined
       );
 
       if (searchRes.success) {

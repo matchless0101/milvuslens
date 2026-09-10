@@ -6,22 +6,25 @@ export async function dataRoutes(app: FastifyInstance) {
   // Query data
   app.post<{
     Params: { name: string };
-    Querystring: { connectionId: string };
+    Querystring: { connectionId: string; db?: string };
     Body: QueryRequest;
   }>("/collections/:name/query", async (req, reply): Promise<ApiResponse> => {
     try {
       const { name } = req.params;
-      const { connectionId } = req.query;
+      const { connectionId, db } = req.query;
       const { filter, limit = 50, offset = 0, outputFields } = req.body;
 
       const client = getClient(connectionId);
-      const res = await client.query({
+      const queryParams: Record<string, unknown> = {
         collection_name: name,
         filter: filter || "",
         limit,
         offset,
         output_fields: outputFields || ["*"],
-      });
+      };
+      if (db) queryParams.db_name = db;
+
+      const res = await client.query(queryParams as unknown as Parameters<typeof client.query>[0]);
 
       return {
         success: true,
@@ -39,17 +42,17 @@ export async function dataRoutes(app: FastifyInstance) {
   // Vector search
   app.post<{
     Params: { name: string };
-    Querystring: { connectionId: string };
+    Querystring: { connectionId: string; db?: string };
     Body: SearchRequest;
   }>("/collections/:name/search", async (req, reply): Promise<ApiResponse> => {
     try {
       const { name } = req.params;
-      const { connectionId } = req.query;
+      const { connectionId, db } = req.query;
       const { vector, vectorField, topK, metricType, filter, outputFields } = req.body;
 
       const client = getClient(connectionId);
 
-      const searchParams = {
+      const searchParams: Record<string, unknown> = {
         collection_name: name,
         vectors: [vector],
         vector_type: 101, // FloatVector
@@ -60,8 +63,9 @@ export async function dataRoutes(app: FastifyInstance) {
         output_fields: outputFields || ["*"],
         ...(filter ? { filter } : {}),
       };
+      if (db) searchParams.db_name = db;
 
-      const res = await client.search(searchParams as unknown as Parameters<typeof client.search>[0]);
+      const res = await client.search(searchParams as unknown as unknown as Parameters<typeof client.search>[0]);
 
       const results =
         res.results?.map(
@@ -85,12 +89,12 @@ export async function dataRoutes(app: FastifyInstance) {
   // Insert data
   app.post<{
     Params: { name: string };
-    Querystring: { connectionId: string };
+    Querystring: { connectionId: string; db?: string };
     Body: { data: Record<string, unknown>[] };
   }>("/collections/:name/insert", async (req, reply): Promise<ApiResponse> => {
     try {
       const { name } = req.params;
-      const { connectionId } = req.query;
+      const { connectionId, db } = req.query;
       const { data } = req.body;
 
       if (!data || data.length === 0) {
@@ -98,10 +102,13 @@ export async function dataRoutes(app: FastifyInstance) {
       }
 
       const client = getClient(connectionId);
-      const res = await client.insert({
+      const insertParams: Record<string, unknown> = {
         collection_name: name,
         data,
-      } as Parameters<typeof client.insert>[0]);
+      };
+      if (db) insertParams.db_name = db;
+
+      await client.insert(insertParams as unknown as Parameters<typeof client.insert>[0]);
 
       return { success: true, data: { insertCount: data.length } };
     } catch (err: unknown) {
@@ -113,21 +120,24 @@ export async function dataRoutes(app: FastifyInstance) {
   // Delete data by filter expression
   app.delete<{
     Params: { name: string };
-    Querystring: { connectionId: string; filter: string };
+    Querystring: { connectionId: string; filter: string; db?: string };
   }>("/collections/:name/delete", async (req, reply): Promise<ApiResponse> => {
     try {
       const { name } = req.params;
-      const { connectionId, filter } = req.query;
+      const { connectionId, filter, db } = req.query;
 
       if (!filter) {
         return reply.code(400).send({ success: false, error: "Filter expression is required" });
       }
 
       const client = getClient(connectionId);
-      await client.delete({
+      const deleteParams: Record<string, unknown> = {
         collection_name: name,
         filter,
-      } as Parameters<typeof client.delete>[0]);
+      };
+      if (db) deleteParams.db_name = db;
+
+      await client.delete(deleteParams as unknown as Parameters<typeof client.delete>[0]);
 
       return { success: true };
     } catch (err: unknown) {

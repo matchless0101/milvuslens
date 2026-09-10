@@ -160,6 +160,7 @@ export function ExplorerPage() {
     );
     const res = await api.createCollection({
       connectionId: activeConnectionId,
+      db: selectedDatabase || undefined,
       collectionName: form.name.trim(),
       fields: form.fields,
       indexParams: vectorFields.map((f) => ({
@@ -179,7 +180,7 @@ export function ExplorerPage() {
   const handleDeleteCol = async (name: string) => {
     if (!activeConnectionId) return;
     setDeleting(true);
-    await api.deleteCollection(activeConnectionId, name);
+    await api.deleteCollection(activeConnectionId, name, selectedDatabase || undefined);
     setDeleting(false);
     setDeleteColName(null);
     loadCollections();
@@ -187,13 +188,13 @@ export function ExplorerPage() {
 
   const handleLoadCol = async (name: string) => {
     if (!activeConnectionId) return;
-    await api.loadCollection(activeConnectionId, name);
+    await api.loadCollection(activeConnectionId, name, selectedDatabase || undefined);
     loadCollections();
   };
 
   const handleReleaseCol = async (name: string) => {
     if (!activeConnectionId) return;
-    await api.releaseCollection(activeConnectionId, name);
+    await api.releaseCollection(activeConnectionId, name, selectedDatabase || undefined);
     loadCollections();
   };
 

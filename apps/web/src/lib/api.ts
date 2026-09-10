@@ -39,6 +39,13 @@ async function request<T>(
   }
 }
 
+function qs(params: Record<string, string | undefined>): string {
+  const parts = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== "")
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`);
+  return parts.length ? `?${parts.join("&")}` : "";
+}
+
 export const api = {
   // Connections
   connect: (config: unknown) =>
@@ -69,45 +76,48 @@ export const api = {
 
   // Collections
   listCollections: (connectionId: string, db?: string) =>
-    request(
-      `/collections?connectionId=${connectionId}${db ? `&db=${db}` : ""}`
-    ),
-  getCollectionSchema: (connectionId: string, name: string) =>
-    request(`/collections/${name}/schema?connectionId=${connectionId}`),
+    request(`/collections${qs({ connectionId, db })}`),
+  getCollectionSchema: (connectionId: string, name: string, db?: string) =>
+    request(`/collections/${name}/schema${qs({ connectionId, db })}`),
   createCollection: (data: unknown) =>
     request("/collections", { method: "POST", body: JSON.stringify(data) }),
-  deleteCollection: (connectionId: string, name: string) =>
-    request(`/collections/${name}?connectionId=${connectionId}`, {
+  deleteCollection: (connectionId: string, name: string, db?: string) =>
+    request(`/collections/${name}${qs({ connectionId, db })}`, {
       method: "DELETE",
     }),
-  loadCollection: (connectionId: string, name: string) =>
-    request(`/collections/${name}/load?connectionId=${connectionId}`, {
+  loadCollection: (connectionId: string, name: string, db?: string) =>
+    request(`/collections/${name}/load${qs({ connectionId, db })}`, {
       method: "POST",
     }),
-  releaseCollection: (connectionId: string, name: string) =>
-    request(`/collections/${name}/release?connectionId=${connectionId}`, {
+  releaseCollection: (connectionId: string, name: string, db?: string) =>
+    request(`/collections/${name}/release${qs({ connectionId, db })}`, {
       method: "POST",
     }),
 
   // Data
-  queryData: (connectionId: string, name: string, body: unknown) =>
-    request(`/collections/${name}/query?connectionId=${connectionId}`, {
+  queryData: (connectionId: string, name: string, body: unknown, db?: string) =>
+    request(`/collections/${name}/query${qs({ connectionId, db })}`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  searchData: (connectionId: string, name: string, body: unknown) =>
-    request(`/collections/${name}/search?connectionId=${connectionId}`, {
+  searchData: (connectionId: string, name: string, body: unknown, db?: string) =>
+    request(`/collections/${name}/search${qs({ connectionId, db })}`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  insertData: (connectionId: string, name: string, data: Record<string, unknown>[]) =>
-    request(`/collections/${name}/insert?connectionId=${connectionId}`, {
+  insertData: (
+    connectionId: string,
+    name: string,
+    data: Record<string, unknown>[],
+    db?: string
+  ) =>
+    request(`/collections/${name}/insert${qs({ connectionId, db })}`, {
       method: "POST",
       body: JSON.stringify({ data }),
     }),
-  deleteData: (connectionId: string, name: string, filter: string) =>
+  deleteData: (connectionId: string, name: string, filter: string, db?: string) =>
     request(
-      `/collections/${name}/delete?connectionId=${connectionId}&filter=${encodeURIComponent(filter)}`,
+      `/collections/${name}/delete${qs({ connectionId, filter, db })}`,
       { method: "DELETE" }
     ),
 

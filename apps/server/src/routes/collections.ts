@@ -31,7 +31,7 @@ export async function collectionRoutes(app: FastifyInstance) {
 
               const descParams: Record<string, unknown> = { collection_name: name };
               if (db) descParams.db_name = db;
-              const desc = await client.describeCollection(descParams as unknown as Parameters<typeof client.describeCollection>[0]) as unknown as {
+              const desc = await client.describeCollection(descParams as unknown as unknown as Parameters<typeof client.describeCollection>[0]) as unknown as {
                 index_descriptions?: unknown[];
                 state?: string;
                 shards_num?: number;
@@ -68,14 +68,16 @@ export async function collectionRoutes(app: FastifyInstance) {
   );
 
   // Get collection schema
-  app.get<{ Params: { name: string }; Querystring: { connectionId: string } }>(
+  app.get<{ Params: { name: string }; Querystring: { connectionId: string; db?: string } }>(
     "/collections/:name/schema",
     async (req, reply): Promise<ApiResponse> => {
       try {
         const { name } = req.params;
-        const { connectionId } = req.query;
+        const { connectionId, db } = req.query;
         const client = getClient(connectionId);
-        const res = await client.describeCollection({ collection_name: name });
+        const params: Record<string, unknown> = { collection_name: name };
+        if (db) params.db_name = db;
+        const res = await client.describeCollection(params as unknown as Parameters<typeof client.describeCollection>[0]);
         return { success: true, data: res };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to describe collection";
@@ -85,11 +87,11 @@ export async function collectionRoutes(app: FastifyInstance) {
   );
 
   // Create collection
-  app.post<{ Body: CreateCollectionRequest & { connectionId: string } }>(
+  app.post<{ Body: CreateCollectionRequest & { connectionId: string; db?: string } }>(
     "/collections",
     async (req, reply): Promise<ApiResponse> => {
       try {
-        const { connectionId, ...createReq } = req.body;
+        const { connectionId, db, ...createReq } = req.body;
         const client = getClient(connectionId);
 
         // Map field schemas to Milvus format
@@ -105,23 +107,28 @@ export async function collectionRoutes(app: FastifyInstance) {
           return base;
         }) as unknown as Array<{ name: string; data_type: number; is_primary_key: boolean; dim?: number; max_length?: number; description?: string }>;
 
-        await client.createCollection({
+        const createParams: Record<string, unknown> = {
           collection_name: createReq.collectionName,
           fields: fields as never,
           shards_num: createReq.shardsNum || 1,
           consistency_level: createReq.consistencyLevel || "Bounded",
-        } as Parameters<typeof client.createCollection>[0]);
+        };
+        if (db) createParams.db_name = db;
+
+        await client.createCollection(createParams as unknown as Parameters<typeof client.createCollection>[0]);
 
         // Create index for vector fields
         for (const idx of createReq.indexParams) {
-          await client.createIndex({
+          const indexParams: Record<string, unknown> = {
             collection_name: createReq.collectionName,
             field_name: idx.fieldName,
             index_name: `${idx.fieldName}_idx`,
             index_type: idx.indexType,
             metric_type: idx.metricType,
             params: JSON.stringify(idx.params || {}),
-          } as Parameters<typeof client.createIndex>[0]);
+          };
+          if (db) indexParams.db_name = db;
+          await client.createIndex(indexParams as unknown as Parameters<typeof client.createIndex>[0]);
         }
 
         return { success: true, data: { name: createReq.collectionName } };
@@ -133,14 +140,16 @@ export async function collectionRoutes(app: FastifyInstance) {
   );
 
   // Delete collection
-  app.delete<{ Params: { name: string }; Querystring: { connectionId: string } }>(
+  app.delete<{ Params: { name: string }; Querystring: { connectionId: string; db?: string } }>(
     "/collections/:name",
     async (req, reply): Promise<ApiResponse> => {
       try {
         const { name } = req.params;
-        const { connectionId } = req.query;
+        const { connectionId, db } = req.query;
         const client = getClient(connectionId);
-        await client.dropCollection({ collection_name: name });
+        const params: Record<string, unknown> = { collection_name: name };
+        if (db) params.db_name = db;
+        await client.dropCollection(params as unknown as Parameters<typeof client.dropCollection>[0]);
         return { success: true };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to delete collection";
@@ -150,14 +159,16 @@ export async function collectionRoutes(app: FastifyInstance) {
   );
 
   // Load collection
-  app.post<{ Params: { name: string }; Querystring: { connectionId: string } }>(
+  app.post<{ Params: { name: string }; Querystring: { connectionId: string; db?: string } }>(
     "/collections/:name/load",
     async (req, reply): Promise<ApiResponse> => {
       try {
         const { name } = req.params;
-        const { connectionId } = req.query;
+        const { connectionId, db } = req.query;
         const client = getClient(connectionId);
-        await client.loadCollection({ collection_name: name });
+        const params: Record<string, unknown> = { collection_name: name };
+        if (db) params.db_name = db;
+        await client.loadCollection(params as unknown as Parameters<typeof client.loadCollection>[0]);
         return { success: true };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to load collection";
@@ -167,14 +178,16 @@ export async function collectionRoutes(app: FastifyInstance) {
   );
 
   // Release collection
-  app.post<{ Params: { name: string }; Querystring: { connectionId: string } }>(
+  app.post<{ Params: { name: string }; Querystring: { connectionId: string; db?: string } }>(
     "/collections/:name/release",
     async (req, reply): Promise<ApiResponse> => {
       try {
         const { name } = req.params;
-        const { connectionId } = req.query;
+        const { connectionId, db } = req.query;
         const client = getClient(connectionId);
-        await client.releaseCollection({ collection_name: name });
+        const params: Record<string, unknown> = { collection_name: name };
+        if (db) params.db_name = db;
+        await client.releaseCollection(params as unknown as Parameters<typeof client.releaseCollection>[0]);
         return { success: true };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to release collection";

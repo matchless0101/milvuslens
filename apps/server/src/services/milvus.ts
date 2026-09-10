@@ -52,6 +52,13 @@ export function getClient(connectionId: string): MilvusClient {
 }
 
 export function disconnect(connectionId: string): boolean {
+  const conn = connections.get(connectionId);
+  if (!conn) return false;
+  try {
+    conn.client.closeConnection();
+  } catch {
+    // ignore close errors — connection is being discarded anyway
+  }
   return connections.delete(connectionId);
 }
 
@@ -76,6 +83,12 @@ export async function testConnection(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };
+  } finally {
+    try {
+      client.closeConnection();
+    } catch {
+      // ignore
+    }
   }
 }
 

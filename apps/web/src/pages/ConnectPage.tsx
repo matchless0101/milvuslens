@@ -89,6 +89,8 @@ export function ConnectPage() {
   const handleReconnect = async (conn: ConnectionConfig) => {
     setReconnectingId(conn.id);
     setTestResult(null);
+    // Release the old server-side client first to avoid leaking gRPC connections
+    await api.disconnect(conn.id);
     const res = await api.connect(conn);
     setReconnectingId(null);
 
@@ -237,7 +239,10 @@ export function ConnectPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => removeConnection(conn.id)}
+                    onClick={async () => {
+                      await api.disconnect(conn.id);
+                      removeConnection(conn.id);
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

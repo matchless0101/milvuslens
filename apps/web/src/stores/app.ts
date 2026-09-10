@@ -60,6 +60,8 @@ export const useAppStore = create<AppState>()(
           connections: s.connections.filter((c) => c.id !== id),
           activeConnectionId:
             s.activeConnectionId === id ? null : s.activeConnectionId,
+          activeConnection:
+            s.activeConnection?.id === id ? null : s.activeConnection,
         })),
       setActiveConnection: (id) =>
         set((s) => ({

@@ -65,13 +65,17 @@ export function listConnections(): Array<{
   }));
 }
 
-export async function testConnection(config: ConnectionConfig): Promise<boolean> {
+export async function testConnection(
+  config: ConnectionConfig
+): Promise<{ ok: boolean; error?: string }> {
   const client = new MilvusClient(buildClientConfig(config));
   try {
-    await client.checkHealth();
-    return true;
-  } catch {
-    return false;
+    // listDatabases is more universally supported than checkHealth
+    await client.listDatabases();
+    return { ok: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
   }
 }
 

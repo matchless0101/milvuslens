@@ -12,20 +12,33 @@ import {
 import { Database, Plus, Trash2, RefreshCw } from "lucide-react";
 
 export function DatabasesPage() {
-  const { activeConnectionId, setCurrentPage, setSelectedDatabase } =
-    useAppStore();
+  const {
+    activeConnectionId,
+    setCurrentPage,
+    setSelectedDatabase,
+    setActiveConnection,
+  } = useAppStore();
   const [databases, setDatabases] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [newDbName, setNewDbName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadDatabases = async () => {
     if (!activeConnectionId) return;
     setLoading(true);
+    setError(null);
     const res = await api.listDatabases(activeConnectionId);
     setLoading(false);
     if (res.success) {
       setDatabases((res.data as string[]) || []);
+    } else {
+      const msg = res.error || "加载失败";
+      setError(msg);
+      // If connection not found, clear stale activeConnectionId
+      if (msg.includes("Connection not found") || msg.includes("not found")) {
+        setActiveConnection(null);
+      }
     }
   };
 
@@ -81,6 +94,22 @@ export function DatabasesPage() {
           刷新
         </Button>
       </div>
+
+      {error && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+          {error}
+          {error.includes("not found") && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="ml-2"
+              onClick={() => setCurrentPage("connect")}
+            >
+              重新连接
+            </Button>
+          )}
+        </div>
+      )}
 
       <Card>
         <CardHeader>

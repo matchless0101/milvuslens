@@ -71,9 +71,12 @@ export function ConnectPage() {
     const res = await api.connect(config);
     setConnecting(false);
 
-    if (res.success) {
-      addConnection(config);
-      setActiveConnection(config.id);
+    if (res.success && res.data) {
+      // Use the server-assigned connectionId, not the client-generated one
+      const serverId = (res.data as { connectionId: string }).connectionId;
+      const savedConfig = { ...config, id: serverId };
+      addConnection(savedConfig);
+      setActiveConnection(serverId);
       setCurrentPage("databases");
     } else {
       setTestResult({ ok: false, msg: res.error || "连接失败" });

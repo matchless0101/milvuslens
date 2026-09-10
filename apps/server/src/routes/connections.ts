@@ -28,10 +28,10 @@ export async function connectionRoutes(app: FastifyInstance) {
     "/connect/test",
     async (req, reply): Promise<ApiResponse> => {
       try {
-        const ok = await testConnection(req.body);
+        const result = await testConnection(req.body);
         return {
           success: true,
-          data: { connected: ok, error: ok ? undefined : "Health check failed" },
+          data: { connected: result.ok, error: result.error },
         };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Test failed";

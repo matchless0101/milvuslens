@@ -1,0 +1,17 @@
+{
+  "name": "milvuslens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A lightweight open-source Milvus management tool",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @milvuslens/server --filter @milvuslens/web dev",
+    "dev:server": "pnpm --filter @milvuslens/server dev",
+    "dev:web": "pnpm --filter @milvuslens/web dev",
+    "build": "pnpm --filter @milvuslens/shared build && pnpm --filter @milvuslens/server build && pnpm --filter @milvuslens/web build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,9 +1,18 @@
 import type { FastifyInstance } from "fastify";
 import type { ApiResponse, EmbeddingConfig } from "@milvuslens/shared";
+import { validateEmbeddingUrl } from "../services/urlGuard.js";
 
 interface EmbedBody {
   text: string;
   config: EmbeddingConfig;
+}
+
+function buildEmbeddingHeaders(config: EmbeddingConfig): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${config.apiKey}`,
+    ...config.headers,
+  };
 }
 
 export async function embeddingRoutes(app: FastifyInstance) {
@@ -18,15 +27,14 @@ export async function embeddingRoutes(app: FastifyInstance) {
           .send({ success: false, error: "Embedding config is incomplete" });
       }
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-        ...config.headers,
-      };
+      const guard = validateEmbeddingUrl(config.baseUrl);
+      if (!guard.ok) {
+        return reply.code(400).send({ success: false, error: guard.error });
+      }
 
-      const response = await fetch(`${config.baseUrl}/embeddings`, {
+      const response = await fetch(`${guard.url.toString().replace(/\/$/, "")}/embeddings`, {
         method: "POST",
-        headers,
+        headers: buildEmbeddingHeaders(config),
         body: JSON.stringify({
           model: config.model,
           input: text,
@@ -73,15 +81,20 @@ export async function embeddingRoutes(app: FastifyInstance) {
       try {
         const { config } = req.body;
 
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.apiKey}`,
-          ...config.headers,
-        };
+        if (!config?.baseUrl || !config?.model) {
+          return reply
+            .code(400)
+            .send({ success: false, error: "Embedding config is incomplete" });
+        }
 
-        const response = await fetch(`${config.baseUrl}/embeddings`, {
+        const guard = validateEmbeddingUrl(config.baseUrl);
+        if (!guard.ok) {
+          return reply.code(400).send({ success: false, error: guard.error });
+        }
+
+        const response = await fetch(`${guard.url.toString().replace(/\/$/, "")}/embeddings`, {
           method: "POST",
-          headers,
+          headers: buildEmbeddingHeaders(config),
           body: JSON.stringify({
             model: config.model,
             input: "test",

@@ -35,6 +35,7 @@ export function ConnectPage() {
   });
   const [testing, setTesting] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [reconnectingId, setReconnectingId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<
     { ok: boolean; msg: string } | null
   >(null);
@@ -77,6 +78,25 @@ export function ConnectPage() {
       const serverId = (res.data as { connectionId: string }).connectionId;
       const savedConfig = { ...config, id: serverId };
       addConnection(savedConfig);
+      setActiveConnection(serverId);
+      setCurrentPage("databases");
+    } else {
+      setTestResult({ ok: false, msg: translateError(res.error) });
+    }
+  };
+
+  // Reconnect using a saved connection config — calls backend to get a fresh connectionId
+  const handleReconnect = async (conn: ConnectionConfig) => {
+    setReconnectingId(conn.id);
+    setTestResult(null);
+    const res = await api.connect(conn);
+    setReconnectingId(null);
+
+    if (res.success && res.data) {
+      const serverId = (res.data as { connectionId: string }).connectionId;
+      // Update the saved connection with the new server ID
+      removeConnection(conn.id);
+      addConnection({ ...conn, id: serverId });
       setActiveConnection(serverId);
       setCurrentPage("databases");
     } else {
@@ -209,12 +229,10 @@ export function ConnectPage() {
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    onClick={() => {
-                      setActiveConnection(conn.id);
-                      setCurrentPage("databases");
-                    }}
+                    disabled={reconnectingId === conn.id}
+                    onClick={() => handleReconnect(conn)}
                   >
-                    连接
+                    {reconnectingId === conn.id ? "连接中..." : "连接"}
                   </Button>
                   <Button
                     size="sm"

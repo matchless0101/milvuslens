@@ -3,6 +3,7 @@ import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
 import { translateError } from "@/lib/errors";
 import { FilterBuilder } from "@/components/FilterBuilder";
+import { JsonViewer } from "@/components/JsonViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -488,21 +489,32 @@ export function DataExplorerPage() {
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
-                  <div className="text-sm font-mono bg-muted p-2 rounded overflow-auto max-h-40">
-                    {Array.isArray(value)
-                      ? value.length > 20
-                        ? `[${value.length} 维向量] 前20维: [${value
-                            .slice(0, 20)
-                            .map((v: number) => v.toFixed(4))
-                            .join(", ")}...]`
-                        : `[${value
-                            .map((v: number) =>
-                              typeof v === "number" ? v.toFixed(4) : v
-                            )
-                            .join(", ")}]`
-                      : typeof value === "object" && value !== null
-                        ? JSON.stringify(value, null, 2)
-                        : String(value ?? "—")}
+                  <div className="text-sm bg-muted rounded overflow-auto max-h-60">
+                    {Array.isArray(value) && value.length > 0 && typeof value[0] === "number" ? (
+                      // Vector field - show compact preview
+                      <div className="font-mono p-2">
+                        {value.length > 20
+                          ? `[${value.length} 维向量] 前20维: [${value
+                              .slice(0, 20)
+                              .map((v: number) => v.toFixed(4))
+                              .join(", ")}...]`
+                          : `[${value
+                              .map((v: number) =>
+                                typeof v === "number" ? v.toFixed(4) : v
+                              )
+                              .join(", ")}]`}
+                      </div>
+                    ) : typeof value === "object" && value !== null ? (
+                      // JSON object/array - use tree viewer
+                      <div className="p-2">
+                        <JsonViewer data={value} defaultExpanded={true} />
+                      </div>
+                    ) : (
+                      // Scalar value
+                      <div className="font-mono p-2">
+                        {String(value ?? "—")}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

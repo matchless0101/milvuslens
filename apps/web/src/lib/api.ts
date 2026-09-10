@@ -1,4 +1,17 @@
+import { useAppStore } from "@/stores/app";
+
 const API_BASE = "/api";
+
+function isConnectionLost(message: string | undefined): boolean {
+  if (!message) return false;
+  return message.toLowerCase().includes("connection not found");
+}
+
+function handleConnectionLost() {
+  const store = useAppStore.getState();
+  store.setActiveConnection(null);
+  store.setCurrentPage("connect");
+}
 
 async function request<T>(
   path: string,
@@ -10,6 +23,13 @@ async function request<T>(
       ...options,
     });
     const json = await res.json();
+    if (
+      json &&
+      json.success === false &&
+      isConnectionLost(json.error)
+    ) {
+      handleConnectionLost();
+    }
     return json;
   } catch (err) {
     return {

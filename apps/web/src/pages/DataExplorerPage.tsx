@@ -232,20 +232,6 @@ export function DataExplorerPage() {
       {/* Toolbar */}
       <div className="border-b p-4 flex items-center gap-3">
         <h2 className="font-semibold text-lg">{selectedCollection}</h2>
-        <FilterBuilder
-          fields={scalarFields}
-          filter={filter}
-          onFilterChange={setFilter}
-          onApply={() => {
-            setPage(0);
-            loadData();
-          }}
-        />
-        {filter && (
-          <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-            {filter}
-          </span>
-        )}
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={loadData}>
           <RefreshCw className="h-4 w-4" />
@@ -265,7 +251,7 @@ export function DataExplorerPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Semantic search panel */}
           {showSearchPanel && (
-            <div className="border-b p-4 bg-muted/30">
+            <div className="border-b p-4 bg-muted/30 space-y-3">
               <div className="flex items-end gap-3">
                 <div className="flex-1 space-y-1">
                   <Label className="text-xs">输入问题</Label>
@@ -307,6 +293,25 @@ export function DataExplorerPage() {
                 <Button onClick={handleSearch} disabled={searching}>
                   {searching ? "搜索中..." : "搜索"}
                 </Button>
+              </div>
+
+              {/* Filter row - below search input */}
+              <div className="flex items-center gap-3">
+                <Label className="text-xs w-16 shrink-0">数据筛选</Label>
+                <FilterBuilder
+                  fields={scalarFields}
+                  filter={filter}
+                  onFilterChange={setFilter}
+                  onApply={() => {
+                    setPage(0);
+                    loadData();
+                  }}
+                />
+                {filter && (
+                  <span className="text-xs text-muted-foreground truncate flex-1">
+                    {filter}
+                  </span>
+                )}
               </div>
 
               {/* Search results */}

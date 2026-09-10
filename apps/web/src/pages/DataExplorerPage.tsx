@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
 import { translateError } from "@/lib/errors";
+import { FilterBuilder } from "@/components/FilterBuilder";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -216,18 +217,29 @@ export function DataExplorerPage() {
       (f: any) => f.data_type === "FloatVector" || f.data_type === 101
     ) || [];
 
+  // Scalar fields for filter builder (exclude vector fields)
+  const scalarFields: Array<{ name: string; type: string }> =
+    schema?.schema?.fields
+      ?.filter((f: any) => f.data_type !== "FloatVector" && f.data_type !== 101)
+      ?.map((f: any) => ({
+        name: f.name,
+        type: String(f.data_type),
+      })) || [];
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="border-b p-4 flex items-center gap-3">
         <h2 className="font-semibold text-lg">{selectedCollection}</h2>
         <div className="flex-1" />
-        <Input
-          placeholder="过滤表达式 (如: id > 100)"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && loadData()}
-          className="w-64"
+        <FilterBuilder
+          fields={scalarFields}
+          filter={filter}
+          onFilterChange={setFilter}
+          onApply={() => {
+            setPage(0);
+            loadData();
+          }}
         />
         <Button variant="outline" size="sm" onClick={loadData}>
           <RefreshCw className="h-4 w-4" />

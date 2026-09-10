@@ -12,10 +12,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { Settings, CheckCircle, XCircle } from "lucide-react";
 
 export function SettingsPage() {
-  const { embeddingConfig, setEmbeddingConfig } = useAppStore();
+  const { embeddingConfig, setEmbeddingConfig, rememberSecrets, setRememberSecrets } =
+    useAppStore();
   const [form, setForm] = useState(embeddingConfig);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -118,6 +120,32 @@ export function SettingsPage() {
               {testing ? "测试中..." : "测试配置"}
             </Button>
             <Button onClick={handleSave}>保存配置</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            安全
+          </CardTitle>
+          <CardDescription>
+            控制敏感信息是否写入浏览器本地存储
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>记住密钥</Label>
+              <p className="text-xs text-muted-foreground">
+                关闭时，密码与 API Key 不会保存到 localStorage，刷新后需重新输入
+              </p>
+            </div>
+            <Switch
+              checked={rememberSecrets}
+              onCheckedChange={setRememberSecrets}
+            />
           </div>
         </CardContent>
       </Card>

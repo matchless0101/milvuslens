@@ -36,6 +36,10 @@ interface AppState {
   };
   setEmbeddingConfig: (config: AppState["embeddingConfig"]) => void;
 
+  // When false (default), password/apiKey are not written to localStorage
+  rememberSecrets: boolean;
+  setRememberSecrets: (v: boolean) => void;
+
   // Command palette
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
@@ -89,17 +93,31 @@ export const useAppStore = create<AppState>()(
       },
       setEmbeddingConfig: (config) => set({ embeddingConfig: config }),
 
+      rememberSecrets: false,
+      setRememberSecrets: (v) => set({ rememberSecrets: v }),
+
       // Command palette
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
     }),
     {
       name: "milvuslens-storage",
-      partialize: (s) => ({
-        theme: s.theme,
-        connections: s.connections,
-        embeddingConfig: s.embeddingConfig,
-      }),
+      partialize: (s) => {
+        const remember = s.rememberSecrets;
+        return {
+          theme: s.theme,
+          rememberSecrets: remember,
+          connections: s.connections.map((c) => ({
+            ...c,
+            password: remember ? c.password : undefined,
+          })),
+          embeddingConfig: {
+            baseUrl: s.embeddingConfig.baseUrl,
+            model: s.embeddingConfig.model,
+            apiKey: remember ? s.embeddingConfig.apiKey : "",
+          },
+        };
+      },
     }
   )
 );

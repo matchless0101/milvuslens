@@ -54,11 +54,8 @@ export function getClient(connectionId: string): MilvusClient {
 export function disconnect(connectionId: string): boolean {
   const conn = connections.get(connectionId);
   if (!conn) return false;
-  try {
-    conn.client.closeConnection();
-  } catch {
-    // ignore close errors — connection is being discarded anyway
-  }
+  // Fire-and-forget close; do not block the route on pool drain
+  void Promise.resolve(conn.client.closeConnection()).catch(() => {});
   return connections.delete(connectionId);
 }
 
@@ -84,11 +81,8 @@ export async function testConnection(
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };
   } finally {
-    try {
-      client.closeConnection();
-    } catch {
-      // ignore
-    }
+    // Always tear down the probe client so tests don't leak channels
+    void Promise.resolve(client.closeConnection()).catch(() => {});
   }
 }
 

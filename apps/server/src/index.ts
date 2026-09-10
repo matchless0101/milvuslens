@@ -13,16 +13,25 @@ process.on("unhandledRejection", (reason) => {
 
 const server = Fastify({ logger: true });
 
-// Only allow the local Vite dev server (and same-origin / no-origin calls).
-// Blocks arbitrary websites from hitting this localhost API.
-const allowedOrigins = new Set([
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-]);
+// Allow local frontend origins (any localhost/127.0.0.1 port) and no-origin (proxy/CLI).
+const isLocalOrigin = (origin: string): boolean => {
+  try {
+    const u = new URL(origin);
+    const host = u.hostname;
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "[::1]" ||
+      host === "::1"
+    );
+  } catch {
+    return false;
+  }
+};
 
 await server.register(cors, {
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.has(origin)) {
+    if (!origin || isLocalOrigin(origin)) {
       cb(null, true);
     } else {
       cb(null, false);

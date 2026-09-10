@@ -36,6 +36,7 @@ export function ConnectPage() {
   const [testing, setTesting] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [reconnectingId, setReconnectingId] = useState<string | null>(null);
+  const [reconnectPassword, setReconnectPassword] = useState<Record<string, string>>({});
   const [testResult, setTestResult] = useState<
     { ok: boolean; msg: string } | null
   >(null);
@@ -88,23 +89,40 @@ export function ConnectPage() {
 
   // Reconnect using a saved connection config — calls backend to get a fresh connectionId
   const handleReconnect = async (conn: ConnectionConfig) => {
+    // Password is not persisted by default; require it again when username auth is used
+    const password = conn.password || reconnectPassword[conn.id] || undefined;
+    if (conn.username && !password && !conn.token) {
+      setTestResult({
+        ok: false,
+        msg: "该连接使用用户名认证，请先输入密码后再连接",
+      });
+      return;
+    }
+
     setReconnectingId(conn.id);
     setTestResult(null);
-    // Release the old server-side client first to avoid leaking gRPC connections
-    await api.disconnect(conn.id);
-    const res = await api.connect(conn);
-    setReconnectingId(null);
+
+    const payload: ConnectionConfig = {
+      ...conn,
+      password: password || undefined,
+    };
+
+    // Create the new server connection first; only drop the old one after success
+    const res = await api.connect(payload);
 
     if (res.success && res.data) {
       const serverId = (res.data as { connectionId: string }).connectionId;
-      // Update the saved connection with the new server ID
+      if (conn.id && conn.id !== serverId) {
+        void api.disconnect(conn.id);
+      }
       removeConnection(conn.id);
-      addConnection({ ...conn, id: serverId });
+      addConnection({ ...payload, id: serverId });
       setActiveConnection(serverId);
       setCurrentPage("explorer");
     } else {
       setTestResult({ ok: false, msg: translateError(res.error) });
     }
+    setReconnectingId(null);
   };
 
   return (
@@ -218,38 +236,63 @@ export function ConnectPage() {
             <CardTitle>已保存的连接</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {connections.map((conn) => (
-              <div
-                key={conn.id}
-                className="flex items-center justify-between p-3 border rounded-md"
-              >
-                <div>
-                  <p className="font-medium">{conn.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {conn.host}:{conn.port}
-                  </p>
+            {connections.map((conn) => {
+              const needsPassword = Boolean(conn.username) && !conn.password && !conn.token;
+              return (
+                <div
+                  key={conn.id}
+                  className="p-3 border rounded-md space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{conn.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {conn.host}:{conn.port}
+                        {conn.username ? ` · ${conn.username}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={reconnectingId === conn.id}
+                        onClick={() => handleReconnect(conn)}
+                      >
+                        {reconnectingId === conn.id ? "连接中..." : "连接"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          await api.disconnect(conn.id);
+                          removeConnection(conn.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  {needsPassword && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="password"
+                        placeholder="密码未保存，请输入后连接"
+                        value={reconnectPassword[conn.id] || ""}
+                        onChange={(e) =>
+                          setReconnectPassword({
+                            ...reconnectPassword,
+                            [conn.id]: e.target.value,
+                          })
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleReconnect(conn);
+                        }}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    disabled={reconnectingId === conn.id}
-                    onClick={() => handleReconnect(conn)}
-                  >
-                    {reconnectingId === conn.id ? "连接中..." : "连接"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={async () => {
-                      await api.disconnect(conn.id);
-                      removeConnection(conn.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}

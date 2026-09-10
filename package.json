@@ -10,7 +10,8 @@
     "build": "pnpm --filter @milvuslens/shared build && pnpm --filter @milvuslens/server build && pnpm --filter @milvuslens/web build",
     "lint": "eslint apps packages",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "smoke": "node scripts/smoke-api.mjs"
   },
   "engines": {
     "node": ">=20"

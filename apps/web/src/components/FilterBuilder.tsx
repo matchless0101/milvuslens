@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,6 +80,39 @@ export function FilterBuilder({
   const [conditions, setConditions] = useState<FilterCondition[]>([
     { id: "1", field: "", operator: "==", value: "" },
   ]);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0 });
+
+  // Calculate fixed position when opening
+  useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPanelPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+      });
+    }
+  }, [open]);
+
+  // Close on outside click
+  const handleClickOutside = useCallback((e: MouseEvent) => {
+    if (
+      panelRef.current &&
+      !panelRef.current.contains(e.target as Node) &&
+      btnRef.current &&
+      !btnRef.current.contains(e.target as Node)
+    ) {
+      setOpen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [open, handleClickOutside]);
 
   // Sync expression when conditions change
   useEffect(() => {
@@ -117,8 +150,9 @@ export function FilterBuilder({
   };
 
   return (
-    <div className="relative">
+    <>
       <Button
+        ref={btnRef}
         variant={filter ? "default" : "outline"}
         size="sm"
         onClick={() => setOpen(!open)}
@@ -129,7 +163,11 @@ export function FilterBuilder({
       </Button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-[480px] bg-card border rounded-lg shadow-lg p-4 space-y-3">
+        <div
+          ref={panelRef}
+          className="fixed z-[100] w-[480px] bg-card border rounded-lg shadow-xl p-4 space-y-3"
+          style={{ top: panelPos.top, left: panelPos.left }}
+        >
           <div className="flex items-center justify-between">
             <Label className="text-sm font-semibold">筛选条件</Label>
             <Select
@@ -235,6 +273,6 @@ export function FilterBuilder({
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }

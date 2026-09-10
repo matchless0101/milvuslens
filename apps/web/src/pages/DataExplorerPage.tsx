@@ -98,6 +98,7 @@ export function DataExplorerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchField, setSearchField] = useState("");
   const [topK, setTopK] = useState(10);
+  const [metricType, setMetricType] = useState<string>("COSINE");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<
     Array<{ id: string | number; score: number; data: Record<string, unknown> }>
@@ -116,13 +117,19 @@ export function DataExplorerPage() {
     if (res.success) {
       setSchema(res.data);
       // Auto-select first vector field for search
-      const fields = (res.data as any)?.schema?.fields || [];
+      const fields = (res.data as { schema?: { fields?: Array<{ name: string; data_type: string | number }> } })?.schema?.fields || [];
       const vectorField = fields.find(
-        (f: any) =>
-          f.data_type === "FloatVector" || f.data_type === 101
+        (f) => f.data_type === "FloatVector" || f.data_type === 101
       );
       if (vectorField && !searchField) {
         setSearchField(vectorField.name);
+      }
+      // Prefer the metric type declared by the collection index
+      const indexes = (res.data as { index_descriptions?: Array<{ field_name?: string; params?: Record<string, unknown> }> })?.index_descriptions || [];
+      const matched = indexes.find((idx) => !vectorField || idx.field_name === vectorField.name) || indexes[0];
+      const metric = matched?.params?.metric_type;
+      if (typeof metric === "string") {
+        setMetricType(metric);
       }
     }
   };
@@ -265,7 +272,7 @@ export function DataExplorerPage() {
           vector: embedding,
           vectorField: searchField,
           topK,
-          metricType: "COSINE",
+          metricType,
         }
       );
 
@@ -281,6 +288,10 @@ export function DataExplorerPage() {
     }
     setSearching(false);
   };
+
+  // COSINE/IP: higher is more similar. L2: lower is closer (distance).
+  const isDistanceMetric = metricType.toUpperCase() === "L2";
+  const formatScore = (score: number): string => score.toFixed(4);
 
   // All available columns
   const allColumns: string[] =
@@ -389,6 +400,19 @@ export function DataExplorerPage() {
                   </div>
                 )}
                 <div className="space-y-1">
+                  <Label className="text-xs">Metric</Label>
+                  <Select value={metricType} onValueChange={setMetricType}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="COSINE">COSINE</SelectItem>
+                      <SelectItem value="IP">IP</SelectItem>
+                      <SelectItem value="L2">L2</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
                   <Label className="text-xs">TopK</Label>
                   <Input
                     type="number"
@@ -408,7 +432,8 @@ export function DataExplorerPage() {
               {searchResults.length > 0 && (
                 <div className="mt-3 space-y-2 max-h-48 overflow-auto">
                   <p className="text-xs text-muted-foreground">
-                    找到 {searchResults.length} 条结果（按相似度排序）
+                    找到 {searchResults.length} 条结果 · metric: {metricType}
+                    {isDistanceMetric ? " · 距离越小越相似" : " · 分数越大越相似"}
                   </p>
                   {searchResults.map((r, i) => (
                     <div
@@ -419,8 +444,11 @@ export function DataExplorerPage() {
                       <span className="text-xs font-mono text-muted-foreground w-6">
                         #{i + 1}
                       </span>
-                      <span className="text-sm font-semibold text-primary w-20">
-                        {(1 - r.score).toFixed(4)}
+                      <span
+                        className="text-sm font-semibold text-primary w-20"
+                        title={isDistanceMetric ? "距离（越小越相似）" : "相似度（越大越相似）"}
+                      >
+                        {formatScore(r.score)}
                       </span>
                       <span className="text-xs text-muted-foreground w-16">
                         ID: {String(r.id).slice(0, 10)}

@@ -129,7 +129,7 @@ export function FilterBuilder({
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-[480px] bg-card border rounded-lg shadow-lg p-4 space-y-3">
+        <div className="absolute left-0 top-full mt-1 z-50 w-[480px] bg-card border rounded-lg shadow-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-semibold">筛选条件</Label>
             <Select

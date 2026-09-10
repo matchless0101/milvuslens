@@ -232,7 +232,6 @@ export function DataExplorerPage() {
       {/* Toolbar */}
       <div className="border-b p-4 flex items-center gap-3">
         <h2 className="font-semibold text-lg">{selectedCollection}</h2>
-        <div className="flex-1" />
         <FilterBuilder
           fields={scalarFields}
           filter={filter}
@@ -242,6 +241,12 @@ export function DataExplorerPage() {
             loadData();
           }}
         />
+        {filter && (
+          <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+            {filter}
+          </span>
+        )}
+        <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={loadData}>
           <RefreshCw className="h-4 w-4" />
         </Button>

@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -22,6 +29,8 @@ import {
   ChevronRight,
   Copy,
   X,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 export function DataExplorerPage() {
@@ -40,6 +49,16 @@ export function DataExplorerPage() {
   const [filter, setFilter] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [schema, setSchema] = useState<any>(null);
+
+  // Insert dialog state
+  const [insertOpen, setInsertOpen] = useState(false);
+  const [insertData, setInsertData] = useState<Record<string, string>>({});
+  const [inserting, setInserting] = useState(false);
+
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteFilter, setDeleteFilter] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   // Selected row for detail panel
   const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(
@@ -136,6 +155,83 @@ export function DataExplorerPage() {
   useEffect(() => {
     loadData();
   }, [activeConnectionId, selectedCollection, page, pageSize]);
+
+  // Get schema fields for insert form
+  const schemaFields: Array<{ name: string; type: string; isVector: boolean }> =
+    schema?.schema?.fields?.map((f: any) => ({
+      name: f.name,
+      type: String(f.data_type),
+      isVector: f.data_type === "FloatVector" || f.data_type === 101,
+    })) || [];
+
+  // Insert data handler
+  const handleInsert = async () => {
+    if (!activeConnectionId || !selectedCollection) return;
+    setInserting(true);
+
+    // Parse values based on field type
+    const row: Record<string, unknown> = {};
+    for (const field of schemaFields) {
+      const raw = insertData[field.name];
+      if (raw === undefined || raw === "") continue;
+
+      if (field.isVector) {
+        // Parse vector as JSON array
+        try {
+          row[field.name] = JSON.parse(raw);
+        } catch {
+          alert(`字段 ${field.name} 的向量格式不正确，请输入 JSON 数组，如 [0.1, 0.2, ...]`);
+          setInserting(false);
+          return;
+        }
+      } else if (field.type.includes("Int")) {
+        row[field.name] = parseInt(raw, 10);
+      } else if (field.type.includes("Float") || field.type.includes("Double")) {
+        row[field.name] = parseFloat(raw);
+      } else if (field.type.includes("Bool")) {
+        row[field.name] = raw === "true";
+      } else if (field.type.includes("JSON")) {
+        try {
+          row[field.name] = JSON.parse(raw);
+        } catch {
+          alert(`字段 ${field.name} 的 JSON 格式不正确`);
+          setInserting(false);
+          return;
+        }
+      } else {
+        row[field.name] = raw;
+      }
+    }
+
+    const res = await api.insertData(activeConnectionId, selectedCollection, [row]);
+    setInserting(false);
+
+    if (res.success) {
+      setInsertOpen(false);
+      setInsertData({});
+      loadData();
+    } else {
+      alert("插入失败：" + translateError(res.error));
+    }
+  };
+
+  // Delete data handler
+  const handleDelete = async () => {
+    if (!activeConnectionId || !selectedCollection || !deleteFilter.trim()) return;
+    if (!confirm(`确定要删除匹配以下条件的数据吗？\n\n${deleteFilter}\n\n此操作不可恢复！`)) return;
+
+    setDeleting(true);
+    const res = await api.deleteData(activeConnectionId, selectedCollection, deleteFilter.trim());
+    setDeleting(false);
+
+    if (res.success) {
+      setDeleteOpen(false);
+      setDeleteFilter("");
+      loadData();
+    } else {
+      alert("删除失败：" + translateError(res.error));
+    }
+  };
 
   // Semantic search
   const handleSearch = async () => {
@@ -360,6 +456,96 @@ export function DataExplorerPage() {
               visibleColumns={visibleColumns.length > 0 ? visibleColumns : allColumns}
               onVisibilityChange={setVisibleColumns}
             />
+
+            {/* Insert button */}
+            <Dialog open={insertOpen} onOpenChange={setInsertOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-1" />
+                  新增
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg max-h-[80vh] overflow-auto">
+                <DialogHeader>
+                  <DialogTitle>新增数据</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  {schemaFields.map((field) => (
+                    <div key={field.name} className="space-y-1">
+                      <Label className="text-xs">
+                        {field.name}
+                        <span className="text-muted-foreground ml-1">({field.type})</span>
+                        {field.isVector && (
+                          <span className="text-muted-foreground ml-1">— JSON 数组</span>
+                        )}
+                      </Label>
+                      <Input
+                        placeholder={
+                          field.isVector
+                            ? "[0.1, 0.2, 0.3, ...]"
+                            : field.type.includes("JSON")
+                              ? '{"key": "value"}'
+                              : `输入 ${field.name}`
+                        }
+                        value={insertData[field.name] || ""}
+                        onChange={(e) =>
+                          setInsertData({ ...insertData, [field.name]: e.target.value })
+                        }
+                      />
+                    </div>
+                  ))}
+                  <Button
+                    onClick={handleInsert}
+                    disabled={inserting}
+                    className="w-full"
+                  >
+                    {inserting ? "插入中..." : "插入数据"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Delete button */}
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  删除
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>删除数据</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    输入筛选表达式，删除所有匹配的数据。此操作不可恢复。
+                  </p>
+                  <div className="space-y-1">
+                    <Label className="text-xs">筛选表达式</Label>
+                    <Input
+                      placeholder="如: id == 123 或 count > 100"
+                      value={deleteFilter}
+                      onChange={(e) => setDeleteFilter(e.target.value)}
+                    />
+                  </div>
+                  {deleteFilter && (
+                    <div className="text-xs text-muted-foreground bg-muted p-2 rounded font-mono">
+                      将删除匹配: {deleteFilter} 的所有数据
+                    </div>
+                  )}
+                  <Button
+                    onClick={handleDelete}
+                    disabled={deleting || !deleteFilter.trim()}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    {deleting ? "删除中..." : "确认删除"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {filter ? (
               <span className="text-xs text-muted-foreground truncate">
                 {filter}

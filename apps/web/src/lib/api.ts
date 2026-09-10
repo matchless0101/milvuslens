@@ -80,6 +80,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  insertData: (connectionId: string, name: string, data: Record<string, unknown>[]) =>
+    request(`/collections/${name}/insert?connectionId=${connectionId}`, {
+      method: "POST",
+      body: JSON.stringify({ data }),
+    }),
+  deleteData: (connectionId: string, name: string, filter: string) =>
+    request(
+      `/collections/${name}/delete?connectionId=${connectionId}&filter=${encodeURIComponent(filter)}`,
+      { method: "DELETE" }
+    ),
 
   // Embedding
   embed: (text: string, config: unknown) =>

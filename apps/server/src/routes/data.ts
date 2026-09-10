@@ -81,4 +81,58 @@ export async function dataRoutes(app: FastifyInstance) {
       return reply.code(500).send({ success: false, error: message });
     }
   });
+
+  // Insert data
+  app.post<{
+    Params: { name: string };
+    Querystring: { connectionId: string };
+    Body: { data: Record<string, unknown>[] };
+  }>("/collections/:name/insert", async (req, reply): Promise<ApiResponse> => {
+    try {
+      const { name } = req.params;
+      const { connectionId } = req.query;
+      const { data } = req.body;
+
+      if (!data || data.length === 0) {
+        return reply.code(400).send({ success: false, error: "No data provided" });
+      }
+
+      const client = getClient(connectionId);
+      const res = await client.insert({
+        collection_name: name,
+        data,
+      } as Parameters<typeof client.insert>[0]);
+
+      return { success: true, data: { insertCount: data.length } };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Insert failed";
+      return reply.code(500).send({ success: false, error: message });
+    }
+  });
+
+  // Delete data by filter expression
+  app.delete<{
+    Params: { name: string };
+    Querystring: { connectionId: string; filter: string };
+  }>("/collections/:name/delete", async (req, reply): Promise<ApiResponse> => {
+    try {
+      const { name } = req.params;
+      const { connectionId, filter } = req.query;
+
+      if (!filter) {
+        return reply.code(400).send({ success: false, error: "Filter expression is required" });
+      }
+
+      const client = getClient(connectionId);
+      await client.delete({
+        collection_name: name,
+        filter,
+      } as Parameters<typeof client.delete>[0]);
+
+      return { success: true };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Delete failed";
+      return reply.code(500).send({ success: false, error: message });
+    }
+  });
 }

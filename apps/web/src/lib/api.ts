@@ -75,8 +75,14 @@ export const api = {
     }),
 
   // Collections
-  listCollections: (connectionId: string, db?: string) =>
-    request(`/collections${qs({ connectionId, db })}`),
+  listCollections: (connectionId: string, db?: string, withDetails = false) =>
+    request(
+      `/collections${qs({
+        connectionId,
+        db,
+        withDetails: withDetails ? "1" : undefined,
+      })}`
+    ),
   getCollectionSchema: (connectionId: string, name: string, db?: string) =>
     request(`/collections/${name}/schema${qs({ connectionId, db })}`),
   createCollection: (data: unknown) =>

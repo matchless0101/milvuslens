@@ -4,11 +4,12 @@ import { getClient, DataType } from "../services/milvus.js";
 
 export async function collectionRoutes(app: FastifyInstance) {
   // List collections
-  app.get<{ Querystring: { connectionId: string; db?: string } }>(
+  // Default: names only (1 RPC). withDetails=1 adds per-collection stats with limited concurrency.
+  app.get<{ Querystring: { connectionId: string; db?: string; withDetails?: string } }>(
     "/collections",
     async (req, reply): Promise<ApiResponse> => {
       try {
-        const { connectionId, db } = req.query;
+        const { connectionId, db, withDetails } = req.query;
         if (!connectionId) {
           return reply
             .code(400)
@@ -20,44 +21,74 @@ export async function collectionRoutes(app: FastifyInstance) {
         const listParams: Record<string, unknown> = {};
         if (db) listParams.db_name = db;
 
-        const res = await client.listCollections(listParams as Parameters<typeof client.listCollections>[0]);
+        const res = await client.listCollections(listParams as unknown as Parameters<typeof client.listCollections>[0]);
         const names = (res as unknown as { collection_names: string[] }).collection_names || [];
-        const collections = await Promise.all(
-          names.map(async (name: string) => {
-            try {
-              const statsParams: Record<string, unknown> = { collection_name: name };
-              if (db) statsParams.db_name = db;
-              const stats = await client.getCollectionStats(statsParams as unknown as Parameters<typeof client.getCollectionStats>[0]);
 
-              const descParams: Record<string, unknown> = { collection_name: name };
-              if (db) descParams.db_name = db;
-              const desc = await client.describeCollection(descParams as unknown as unknown as Parameters<typeof client.describeCollection>[0]) as unknown as {
-                index_descriptions?: unknown[];
-                state?: string;
-                shards_num?: number;
-                schema?: { description?: string };
-              };
-              const statsArr = (stats as unknown as { stats?: Array<{ key: string; value: string | number }> }).stats || [];
-              return {
-                name,
-                rowCount: Number(statsArr.find((s) => s.key === "row_count")?.value || 0),
-                indexCount: desc.index_descriptions?.length || 0,
-                shardCount: desc.shards_num || 0,
-                state: desc.state || "Unknown",
-                description: desc.schema?.description || "",
-              };
-            } catch {
-              return {
-                name,
-                rowCount: 0,
-                indexCount: 0,
-                shardCount: 0,
-                state: "Unknown",
-                description: "",
-              };
-            }
-          })
-        );
+        if (withDetails !== "1" && withDetails !== "true") {
+          return {
+            success: true,
+            data: names.map((name) => ({
+              name,
+              rowCount: -1,
+              indexCount: -1,
+              shardCount: -1,
+              state: "",
+              description: "",
+            })),
+          };
+        }
+
+        // Fetch stats with bounded concurrency to avoid flooding the Milvus server
+        const CONCURRENCY = 8;
+        const collections: Array<{
+          name: string;
+          rowCount: number;
+          indexCount: number;
+          shardCount: number;
+          state: string;
+          description: string;
+        }> = [];
+
+        for (let i = 0; i < names.length; i += CONCURRENCY) {
+          const batch = names.slice(i, i + CONCURRENCY);
+          const batchResults = await Promise.all(
+            batch.map(async (name: string) => {
+              try {
+                const statsParams: Record<string, unknown> = { collection_name: name };
+                if (db) statsParams.db_name = db;
+                const stats = await client.getCollectionStats(statsParams as unknown as Parameters<typeof client.getCollectionStats>[0]);
+
+                const descParams: Record<string, unknown> = { collection_name: name };
+                if (db) descParams.db_name = db;
+                const desc = await client.describeCollection(descParams as unknown as Parameters<typeof client.describeCollection>[0]) as unknown as {
+                  index_descriptions?: unknown[];
+                  state?: string;
+                  shards_num?: number;
+                  schema?: { description?: string };
+                };
+                const statsArr = (stats as unknown as { stats?: Array<{ key: string; value: string | number }> }).stats || [];
+                return {
+                  name,
+                  rowCount: Number(statsArr.find((s) => s.key === "row_count")?.value || 0),
+                  indexCount: desc.index_descriptions?.length || 0,
+                  shardCount: desc.shards_num || 0,
+                  state: desc.state || "Unknown",
+                  description: desc.schema?.description || "",
+                };
+              } catch {
+                return {
+                  name,
+                  rowCount: 0,
+                  indexCount: 0,
+                  shardCount: 0,
+                  state: "Unknown",
+                  description: "",
+                };
+              }
+            })
+          );
+          collections.push(...batchResults);
+        }
 
         return { success: true, data: collections };
       } catch (err: unknown) {

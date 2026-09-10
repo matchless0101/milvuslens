@@ -108,7 +108,7 @@ export function ExplorerPage() {
       return;
     }
     setColLoading(true);
-    const res = await api.listCollections(activeConnectionId, selectedDatabase);
+    const res = await api.listCollections(activeConnectionId, selectedDatabase, true);
     setColLoading(false);
     if (res.success) {
       setCollections((res.data as CollectionInfo[]) || []);
@@ -477,7 +477,9 @@ export function ExplorerPage() {
                     <div>
                       <p className="font-medium">{col.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {col.rowCount.toLocaleString()} 行 · {col.indexCount} 索引 · {col.state}
+                        {col.rowCount >= 0
+                          ? `${col.rowCount.toLocaleString()} 行 · ${col.indexCount} 索引 · ${col.state || "—"}`
+                          : "加载统计中..."}
                       </p>
                     </div>
                   </div>

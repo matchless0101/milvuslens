@@ -3,6 +3,7 @@ import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
 import { translateError } from "@/lib/errors";
 import { FilterBuilder } from "@/components/FilterBuilder";
+import { ColumnVisibility } from "@/components/ColumnVisibility";
 import { JsonViewer } from "@/components/JsonViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ export function DataExplorerPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [filter, setFilter] = useState("");
+  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [schema, setSchema] = useState<any>(null);
 
   // Selected row for detail panel
@@ -118,7 +120,12 @@ export function DataExplorerPage() {
     setLoading(false);
     if (res.success) {
       const data = res.data as { data: Record<string, unknown>[] };
-      setRows(data?.data || []);
+      const newRows = data?.data || [];
+      setRows(newRows);
+      // Initialize visible columns on first load
+      if (visibleColumns.length === 0 && newRows.length > 0) {
+        setVisibleColumns(Object.keys(newRows[0]));
+      }
     }
   };
 
@@ -179,11 +186,17 @@ export function DataExplorerPage() {
     setSearching(false);
   };
 
-  // Get columns from first row or schema
-  const columns: string[] =
+  // All available columns
+  const allColumns: string[] =
     rows.length > 0
       ? Object.keys(rows[0])
       : (schema?.schema?.fields?.map((f: { name: string }) => f.name) as string[]) || [];
+
+  // Columns to display (filtered by visibility)
+  const columns: string[] =
+    visibleColumns.length > 0
+      ? allColumns.filter((c) => visibleColumns.includes(c))
+      : allColumns;
 
   // Format cell value
   const formatValue = (val: unknown): string => {
@@ -341,6 +354,11 @@ export function DataExplorerPage() {
                 setPage(0);
                 loadData();
               }}
+            />
+            <ColumnVisibility
+              columns={allColumns}
+              visibleColumns={visibleColumns.length > 0 ? visibleColumns : allColumns}
+              onVisibilityChange={setVisibleColumns}
             />
             {filter ? (
               <span className="text-xs text-muted-foreground truncate">

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Settings, CheckCircle, XCircle } from "lucide-react";
+import type { EmbedTestResult } from "@milvuslens/shared";
 
 export function SettingsPage() {
   const { embeddingConfig, setEmbeddingConfig, rememberSecrets, setRememberSecrets } =
@@ -36,7 +37,7 @@ export function SettingsPage() {
     const res = await api.testEmbedding(form);
     setTesting(false);
     if (res.success) {
-      const data = res.data as any;
+      const data = res.data as EmbedTestResult;
       setTestResult({
         ok: true,
         msg: `连接成功 · ${data.dimensions} 维 · 模型: ${data.model}`,

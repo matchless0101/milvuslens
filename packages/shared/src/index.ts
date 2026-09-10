@@ -40,6 +40,36 @@ export interface FieldSchema {
   description?: string;
 }
 
+/** Raw field as returned by Milvus describeCollection */
+export interface MilvusFieldSchema {
+  name: string;
+  data_type: string | number;
+  dim?: number;
+  max_length?: number;
+  is_primary_key?: boolean;
+  description?: string;
+}
+
+export interface CollectionSchemaResponse {
+  collection_name?: string;
+  description?: string;
+  autoID?: boolean;
+  fields: MilvusFieldSchema[];
+  [key: string]: unknown;
+}
+
+export interface DescribeCollectionResult {
+  schema?: CollectionSchemaResponse;
+  index_descriptions?: Array<{
+    index_name?: string;
+    field_name?: string;
+    params?: Record<string, unknown>;
+  }>;
+  state?: string;
+  shards_num?: number;
+  [key: string]: unknown;
+}
+
 export interface IndexConfig {
   fieldName: string;
   indexType: string;
@@ -100,6 +130,12 @@ export interface EmbedRequest {
 export interface EmbedResponse {
   embedding: number[];
   dimensions: number;
+  model: string;
+}
+
+export interface EmbedTestResult {
+  dimensions: number;
+  preview: number[];
   model: string;
 }
 

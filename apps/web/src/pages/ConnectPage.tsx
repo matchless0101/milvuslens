@@ -48,12 +48,13 @@ export function ConnectPage() {
       id: "",
     });
     setTesting(false);
-    if (res.success && (res.data as any)?.connected) {
+    const testData = res.data as { connected?: boolean; error?: string } | undefined;
+    if (res.success && testData?.connected) {
       setTestResult({ ok: true, msg: "连接成功" });
     } else {
       setTestResult({
         ok: false,
-        msg: translateError(res.error || (res.data as any)?.error),
+        msg: translateError(res.error || testData?.error),
       });
     }
   };

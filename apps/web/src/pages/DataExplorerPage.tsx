@@ -9,6 +9,11 @@ import { JsonViewer } from "@/components/JsonViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type {
+  DescribeCollectionResult,
+  EmbedResponse,
+  MilvusFieldSchema,
+} from "@milvuslens/shared";
 import {
   Dialog,
   DialogContent,
@@ -51,7 +56,7 @@ export function DataExplorerPage() {
   const [total, setTotal] = useState<number | null>(null);
   const [filter, setFilter] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
-  const [schema, setSchema] = useState<any>(null);
+  const [schema, setSchema] = useState<DescribeCollectionResult | null>(null);
 
   // Insert dialog state
   const [insertOpen, setInsertOpen] = useState(false);
@@ -120,9 +125,9 @@ export function DataExplorerPage() {
       selectedDatabase || undefined
     );
     if (res.success) {
-      setSchema(res.data);
+      setSchema(res.data as DescribeCollectionResult);
       // Auto-select first vector field for search
-      const fields = (res.data as { schema?: { fields?: Array<{ name: string; data_type: string | number }> } })?.schema?.fields || [];
+      const fields = (res.data as DescribeCollectionResult)?.schema?.fields || [];
       const vectorField = fields.find(
         (f) => f.data_type === "FloatVector" || f.data_type === 101
       );
@@ -130,7 +135,7 @@ export function DataExplorerPage() {
         setSearchField(vectorField.name);
       }
       // Prefer the metric type declared by the collection index
-      const indexes = (res.data as { index_descriptions?: Array<{ field_name?: string; params?: Record<string, unknown> }> })?.index_descriptions || [];
+      const indexes = (res.data as DescribeCollectionResult)?.index_descriptions || [];
       const matched = indexes.find((idx) => !vectorField || idx.field_name === vectorField.name) || indexes[0];
       const metric = matched?.params?.metric_type;
       if (typeof metric === "string") {
@@ -184,7 +189,7 @@ export function DataExplorerPage() {
 
   // Get schema fields for insert form
   const schemaFields: Array<{ name: string; type: string; isVector: boolean }> =
-    schema?.schema?.fields?.map((f: any) => ({
+    schema?.schema?.fields?.map((f: MilvusFieldSchema) => ({
       name: f.name,
       type: String(f.data_type),
       isVector: f.data_type === "FloatVector" || f.data_type === 101,
@@ -314,7 +319,7 @@ export function DataExplorerPage() {
         return;
       }
 
-      const embedding = (embedRes.data as any).embedding;
+      const embedding = (embedRes.data as EmbedResponse).embedding;
 
       // Step 2: Vector search
       const searchRes = await api.searchData(
@@ -396,14 +401,14 @@ export function DataExplorerPage() {
 
   const vectorFields =
     schema?.schema?.fields?.filter(
-      (f: any) => f.data_type === "FloatVector" || f.data_type === 101
+      (f) => f.data_type === "FloatVector" || f.data_type === 101
     ) || [];
 
   // Scalar fields for filter builder (exclude vector fields)
   const scalarFields: Array<{ name: string; type: string }> =
     schema?.schema?.fields
-      ?.filter((f: any) => f.data_type !== "FloatVector" && f.data_type !== 101)
-      ?.map((f: any) => ({
+      ?.filter((f) => f.data_type !== "FloatVector" && f.data_type !== 101)
+      ?.map((f) => ({
         name: f.name,
         type: String(f.data_type),
       })) || [];
@@ -451,7 +456,7 @@ export function DataExplorerPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {vectorFields.map((f: any) => (
+                        {vectorFields.map((f) => (
                           <SelectItem key={f.name} value={f.name}>
                             {f.name}
                           </SelectItem>

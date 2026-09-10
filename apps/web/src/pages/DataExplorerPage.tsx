@@ -141,6 +141,12 @@ export function DataExplorerPage() {
   const loadData = async () => {
     if (!activeConnectionId || !selectedCollection) return;
     setLoading(true);
+
+    // Exclude vector fields from list queries — they are huge and only needed in detail
+    const listFields = (schema?.schema?.fields as Array<{ name: string; data_type: string | number }> | undefined)
+      ?.filter((f) => f.data_type !== "FloatVector" && f.data_type !== 101 && f.data_type !== "BinaryVector" && f.data_type !== 100)
+      .map((f) => f.name);
+
     const res = await api.queryData(
       activeConnectionId,
       selectedCollection,
@@ -148,6 +154,7 @@ export function DataExplorerPage() {
         filter: filter || undefined,
         limit: pageSize,
         offset: page * pageSize,
+        ...(listFields && listFields.length > 0 ? { outputFields: listFields } : {}),
       },
       selectedDatabase || undefined
     );
@@ -164,12 +171,13 @@ export function DataExplorerPage() {
   };
 
   useEffect(() => {
-    loadSchema();
+    void loadSchema();
   }, [activeConnectionId, selectedCollection]);
 
+  // Re-load after schema arrives so we can exclude vector fields
   useEffect(() => {
-    loadData();
-  }, [activeConnectionId, selectedCollection, page, pageSize]);
+    if (schema) void loadData();
+  }, [schema, activeConnectionId, selectedCollection, page, pageSize]);
 
   // Get schema fields for insert form
   const schemaFields: Array<{ name: string; type: string; isVector: boolean }> =

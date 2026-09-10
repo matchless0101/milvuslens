@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
 import { translateError } from "@/lib/errors";
@@ -371,6 +372,18 @@ export function DataExplorerPage() {
       ? allColumns.filter((c) => visibleColumns.includes(c))
       : allColumns;
 
+  // Virtualized row list — only mount rows near the viewport
+  const ROW_HEIGHT = 36;
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 12,
+  });
+
+  // Stable grid template so header and body columns align
+  const gridTemplate = columns.map(() => "minmax(140px, 1fr)").join(" ");
+
   // Format cell value
   const formatValue = (val: unknown): string => {
     if (val === null || val === undefined) return "—";
@@ -670,7 +683,7 @@ export function DataExplorerPage() {
             )}
           </div>
 
-          {/* Data table */}
+          {/* Data table (virtualized) */}
           <div ref={tableRef} className="flex-1 overflow-auto">
             {loading ? (
               <div className="flex items-center justify-center h-full">
@@ -681,38 +694,60 @@ export function DataExplorerPage() {
                 <p className="text-muted-foreground">暂无数据</p>
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-background border-b">
-                  <tr>
-                    {columns.map((col) => (
-                      <th
-                        key={col}
-                        className="text-left px-3 py-2 font-medium text-muted-foreground"
-                      >
-                        {col}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, rowIdx) => (
-                    <tr
-                      key={rowIdx}
-                      className="border-b hover:bg-accent/50 cursor-pointer"
-                      onClick={() => setSelectedRow(row)}
+              <div className="min-w-max">
+                {/* Header */}
+                <div
+                  className="sticky top-0 z-10 grid bg-background border-b"
+                  style={{ gridTemplateColumns: gridTemplate }}
+                >
+                  {columns.map((col) => (
+                    <div
+                      key={col}
+                      className="px-3 py-2 text-left font-medium text-muted-foreground truncate"
                     >
-                      {columns.map((col) => (
-                        <td
-                          key={col}
-                          className="px-3 py-2 max-w-[200px] truncate"
-                        >
-                          {formatValue(row[col])}
-                        </td>
-                      ))}
-                    </tr>
+                      {col}
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                {/* Virtualized body */}
+                <div
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                    width: "100%",
+                    position: "relative",
+                  }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = rows[virtualRow.index];
+                    if (!row) return null;
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        className="absolute top-0 left-0 w-full grid border-b hover:bg-accent/50 cursor-pointer"
+                        style={{
+                          height: ROW_HEIGHT,
+                          transform: `translateY(${virtualRow.start}px)`,
+                          gridTemplateColumns: gridTemplate,
+                        }}
+                        onClick={() => setSelectedRow(row)}
+                      >
+                        {columns.map((col) => (
+                          <div
+                            key={col}
+                            className="px-3 py-2 truncate text-sm"
+                            title={formatValue(row[col])}
+                          >
+                            {formatValue(row[col])}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
 

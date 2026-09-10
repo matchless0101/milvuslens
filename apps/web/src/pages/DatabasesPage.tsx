@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
+import { translateError } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -33,10 +34,10 @@ export function DatabasesPage() {
     if (res.success) {
       setDatabases((res.data as string[]) || []);
     } else {
-      const msg = res.error || "加载失败";
+      const msg = translateError(res.error);
       setError(msg);
       // If connection not found, clear stale activeConnectionId
-      if (msg.includes("Connection not found") || msg.includes("not found")) {
+      if (res.error?.includes("Connection not found") || res.error?.includes("not found")) {
         setActiveConnection(null);
       }
     }

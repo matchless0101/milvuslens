@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
+import { translateError } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,7 +116,7 @@ export function DataExplorerPage() {
       // Step 1: Embed the query
       const embedRes = await api.embed(searchQuery, embeddingConfig);
       if (!embedRes.success) {
-        alert("Embedding 失败: " + embedRes.error);
+        alert("Embedding 失败：" + translateError(embedRes.error));
         setSearching(false);
         return;
       }
@@ -139,10 +140,10 @@ export function DataExplorerPage() {
           (searchRes.data as typeof searchResults) || []
         );
       } else {
-        alert("搜索失败: " + searchRes.error);
+        alert("搜索失败：" + translateError(searchRes.error));
       }
     } catch (err) {
-      alert("搜索出错: " + (err as Error).message);
+      alert("搜索出错：" + translateError((err as Error).message));
     }
     setSearching(false);
   };

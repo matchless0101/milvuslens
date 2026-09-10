@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
+import { translateError } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,7 +52,7 @@ export function ConnectPage() {
     } else {
       setTestResult({
         ok: false,
-        msg: res.error || (res.data as any)?.error || "连接失败",
+        msg: translateError(res.error || (res.data as any)?.error),
       });
     }
   };
@@ -79,7 +80,7 @@ export function ConnectPage() {
       setActiveConnection(serverId);
       setCurrentPage("databases");
     } else {
-      setTestResult({ ok: false, msg: res.error || "连接失败" });
+      setTestResult({ ok: false, msg: translateError(res.error) });
     }
   };
 

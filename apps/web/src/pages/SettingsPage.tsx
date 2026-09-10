@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
+import { translateError } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +40,7 @@ export function SettingsPage() {
         msg: `连接成功 · ${data.dimensions} 维 · 模型: ${data.model}`,
       });
     } else {
-      setTestResult({ ok: false, msg: res.error || "测试失败" });
+      setTestResult({ ok: false, msg: translateError(res.error) });
     }
   };
 

@@ -6,6 +6,11 @@ import { collectionRoutes } from "./routes/collections.js";
 import { dataRoutes } from "./routes/data.js";
 import { embeddingRoutes } from "./routes/embedding.js";
 
+// Prevent unhandled gRPC rejections from crashing the process
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection (kept alive):", reason);
+});
+
 const server = Fastify({ logger: true });
 
 await server.register(cors, { origin: true });

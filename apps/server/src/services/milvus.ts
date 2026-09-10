@@ -9,9 +9,17 @@ const connections = new Map<
   { client: MilvusClient; config: ConnectionConfig }
 >();
 
+function buildAddress(config: ConnectionConfig): string {
+  // If host already contains a port (e.g. "39.97.251.27:19530"), use it as-is
+  if (config.host.includes(":")) {
+    return config.host;
+  }
+  return `${config.host}:${config.port}`;
+}
+
 function buildClientConfig(config: ConnectionConfig): ClientConfig {
   const clientConfig: Record<string, unknown> = {
-    address: `${config.host}:${config.port}`,
+    address: buildAddress(config),
   };
 
   if (config.token) {

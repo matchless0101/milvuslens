@@ -1,8 +1,7 @@
 import { useAppStore } from "@/stores/app";
 import {
-  Database,
+  FolderTree,
   HardDrive,
-  LayoutList,
   Settings,
   Table2,
   Sun,
@@ -13,8 +12,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { id: "connect" as const, label: "连接", icon: Zap },
-  { id: "databases" as const, label: "数据库", icon: Database },
-  { id: "collections" as const, label: "集合", icon: LayoutList },
+  { id: "explorer" as const, label: "数据浏览", icon: FolderTree },
   { id: "data" as const, label: "数据查看", icon: Table2 },
   { id: "settings" as const, label: "设置", icon: Settings },
 ];

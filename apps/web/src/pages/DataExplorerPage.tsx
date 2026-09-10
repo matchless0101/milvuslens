@@ -175,7 +175,7 @@ export function DataExplorerPage() {
         <p className="text-muted-foreground mb-4">
           请先连接并选择一个集合
         </p>
-        <Button onClick={() => setCurrentPage("collections")}>
+        <Button onClick={() => setCurrentPage("explorer")}>
           前往集合列表
         </Button>
       </div>

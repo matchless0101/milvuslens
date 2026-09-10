@@ -2,8 +2,7 @@ import { useEffect } from "react";
 import { useAppStore } from "./stores/app";
 import { Sidebar } from "./components/Sidebar";
 import { ConnectPage } from "./pages/ConnectPage";
-import { DatabasesPage } from "./pages/DatabasesPage";
-import { CollectionsPage } from "./pages/CollectionsPage";
+import { ExplorerPage } from "./pages/ExplorerPage";
 import { DataExplorerPage } from "./pages/DataExplorerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CommandPalette } from "./components/CommandPalette";
@@ -31,10 +30,8 @@ export default function App() {
     switch (currentPage) {
       case "connect":
         return <ConnectPage />;
-      case "databases":
-        return <DatabasesPage />;
-      case "collections":
-        return <CollectionsPage />;
+      case "explorer":
+        return <ExplorerPage />;
       case "data":
         return <DataExplorerPage />;
       case "settings":

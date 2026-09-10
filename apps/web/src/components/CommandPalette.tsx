@@ -8,8 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
-  Database,
-  LayoutList,
+  FolderTree,
   Settings,
   Table2,
   Zap,
@@ -31,8 +30,7 @@ export function CommandPalette() {
 
   const commands = [
     { id: "connect", label: "前往 连接管理", icon: Zap, action: () => setCurrentPage("connect") },
-    { id: "databases", label: "前往 数据库", icon: Database, action: () => setCurrentPage("databases") },
-    { id: "collections", label: "前往 集合列表", icon: LayoutList, action: () => setCurrentPage("collections") },
+    { id: "explorer", label: "前往 数据浏览", icon: FolderTree, action: () => setCurrentPage("explorer") },
     { id: "data", label: "前往 数据查看", icon: Table2, action: () => setCurrentPage("data") },
     { id: "settings", label: "前往 设置", icon: Settings, action: () => setCurrentPage("settings") },
   ];

@@ -79,7 +79,7 @@ export function ConnectPage() {
       const savedConfig = { ...config, id: serverId };
       addConnection(savedConfig);
       setActiveConnection(serverId);
-      setCurrentPage("databases");
+      setCurrentPage("explorer");
     } else {
       setTestResult({ ok: false, msg: translateError(res.error) });
     }
@@ -98,7 +98,7 @@ export function ConnectPage() {
       removeConnection(conn.id);
       addConnection({ ...conn, id: serverId });
       setActiveConnection(serverId);
-      setCurrentPage("databases");
+      setCurrentPage("explorer");
     } else {
       setTestResult({ ok: false, msg: translateError(res.error) });
     }

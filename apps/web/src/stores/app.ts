@@ -17,7 +17,7 @@ interface AppState {
   setActiveConnection: (id: string | null) => void;
 
   // Navigation
-  currentPage: "connect" | "databases" | "collections" | "data" | "settings";
+  currentPage: "connect" | "explorer" | "data" | "settings";
   setCurrentPage: (page: AppState["currentPage"]) => void;
 
   // Selected collection

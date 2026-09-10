@@ -16,17 +16,22 @@ export async function collectionRoutes(app: FastifyInstance) {
         }
         const client = getClient(connectionId);
 
-        if (db) {
-          await client.use({ db_name: db });
-        }
+        // Pass db_name directly to avoid global client.use() race conditions
+        const listParams: Record<string, unknown> = {};
+        if (db) listParams.db_name = db;
 
-        const res = await client.listCollections();
+        const res = await client.listCollections(listParams as Parameters<typeof client.listCollections>[0]);
         const names = (res as unknown as { collection_names: string[] }).collection_names || [];
         const collections = await Promise.all(
           names.map(async (name: string) => {
             try {
-              const stats = await client.getCollectionStats({ collection_name: name });
-              const desc = await client.describeCollection({ collection_name: name }) as unknown as {
+              const statsParams: Record<string, unknown> = { collection_name: name };
+              if (db) statsParams.db_name = db;
+              const stats = await client.getCollectionStats(statsParams as unknown as Parameters<typeof client.getCollectionStats>[0]);
+
+              const descParams: Record<string, unknown> = { collection_name: name };
+              if (db) descParams.db_name = db;
+              const desc = await client.describeCollection(descParams as unknown as Parameters<typeof client.describeCollection>[0]) as unknown as {
                 index_descriptions?: unknown[];
                 state?: string;
                 shards_num?: number;

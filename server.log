@@ -1,4 +1,0 @@
-$ pnpm --filter @milvuslens/server dev
-$ tsx watch src/index.ts
-{"level":30,"time":1789035453392,"pid":34948,"hostname":"Matchless","msg":"Server listening at http://127.0.0.1:3001"}
-MilvusLens server running at http://127.0.0.1:3001

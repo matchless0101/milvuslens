@@ -58,11 +58,31 @@ export async function collectionRoutes(app: FastifyInstance) {
                 if (db) statsParams.db_name = db;
                 const stats = await client.getCollectionStats(statsParams as unknown as Parameters<typeof client.getCollectionStats>[0]);
 
+                // describeCollection does NOT include indexes — use listIndexes
+                const indexParams: Record<string, unknown> = { collection_name: name };
+                if (db) indexParams.db_name = db;
+                let indexCount = 0;
+                try {
+                  const idxRes = await client.listIndexes(indexParams as unknown as Parameters<typeof client.listIndexes>[0]);
+                  indexCount = (idxRes as unknown as { indexes?: unknown[] }).indexes?.length || 0;
+                } catch {
+                  indexCount = 0;
+                }
+
+                // Real load state (Loaded / NotLoad / ...)
+                let state = "Unknown";
+                try {
+                  const loadRes = await client.getLoadState(
+                    indexParams as unknown as Parameters<typeof client.getLoadState>[0]
+                  );
+                  state = (loadRes as unknown as { state?: string }).state || "Unknown";
+                } catch {
+                  state = "Unknown";
+                }
+
                 const descParams: Record<string, unknown> = { collection_name: name };
                 if (db) descParams.db_name = db;
                 const desc = await client.describeCollection(descParams as unknown as Parameters<typeof client.describeCollection>[0]) as unknown as {
-                  index_descriptions?: unknown[];
-                  state?: string;
                   shards_num?: number;
                   schema?: { description?: string };
                 };
@@ -70,9 +90,9 @@ export async function collectionRoutes(app: FastifyInstance) {
                 return {
                   name,
                   rowCount: Number(statsArr.find((s) => s.key === "row_count")?.value || 0),
-                  indexCount: desc.index_descriptions?.length || 0,
+                  indexCount,
                   shardCount: desc.shards_num || 0,
-                  state: desc.state || "Unknown",
+                  state,
                   description: desc.schema?.description || "",
                 };
               } catch {
@@ -98,7 +118,7 @@ export async function collectionRoutes(app: FastifyInstance) {
     }
   );
 
-  // Get collection schema
+  // Get collection schema (includes index_descriptions for metric auto-detect)
   app.get<{ Params: { name: string }; Querystring: { connectionId: string; db?: string } }>(
     "/collections/:name/schema",
     async (req, reply): Promise<ApiResponse> => {
@@ -109,7 +129,14 @@ export async function collectionRoutes(app: FastifyInstance) {
         const params: Record<string, unknown> = { collection_name: name };
         if (db) params.db_name = db;
         const res = await client.describeCollection(params as unknown as Parameters<typeof client.describeCollection>[0]);
-        return { success: true, data: res };
+        let index_descriptions: unknown[] = [];
+        try {
+          const idx = await client.describeIndex(params as unknown as Parameters<typeof client.describeIndex>[0]);
+          index_descriptions = (idx as unknown as { index_descriptions?: unknown[] }).index_descriptions || [];
+        } catch {
+          index_descriptions = [];
+        }
+        return { success: true, data: { ...(res as object), index_descriptions } };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to describe collection";
         return reply.code(500).send({ success: false, error: message });

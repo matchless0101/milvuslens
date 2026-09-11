@@ -45,9 +45,16 @@ export function DataExplorerPage() {
     activeConnectionId,
     selectedCollection,
     selectedDatabase,
+    setSelectedCollection,
+    setSelectedDatabase,
     setCurrentPage,
     embeddingConfig,
   } = useAppStore();
+
+  // Database / collection switcher
+  const [databases, setDatabases] = useState<string[]>([]);
+  const [collections, setCollections] = useState<string[]>([]);
+  const [switcherLoading, setSwitcherLoading] = useState(false);
 
   // Data state
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
@@ -117,6 +124,68 @@ export function DataExplorerPage() {
 
   const tableRef = useRef<HTMLDivElement>(null);
 
+  // Load databases + collections for the in-page switcher
+  const loadDatabases = async () => {
+    if (!activeConnectionId) return;
+    setSwitcherLoading(true);
+    const res = await api.listDatabases(activeConnectionId);
+    setSwitcherLoading(false);
+    if (res.success) {
+      const dbs = (res.data as string[]) || [];
+      setDatabases(dbs);
+      if (!selectedDatabase && dbs.length > 0) {
+        setSelectedDatabase(dbs[0]);
+      }
+    }
+  };
+
+  const loadCollectionNames = async (db: string | null | undefined) => {
+    if (!activeConnectionId || !db) {
+      setCollections([]);
+      return;
+    }
+    setSwitcherLoading(true);
+    const res = await api.listCollections(activeConnectionId, db, false);
+    setSwitcherLoading(false);
+    if (res.success) {
+      const names =
+        (
+          res.data as Array<{ name: string }>
+        )?.map((c) => c.name) || [];
+      setCollections(names);
+      if (!selectedCollection && names.length > 0) {
+        setSelectedCollection(names[0]);
+      }
+    }
+  };
+
+  const resetTableView = () => {
+    setPage(0);
+    setFilter("");
+    setSelectedRow(null);
+    setSearchResults([]);
+    setSearchQuery("");
+    setSearchField("");
+    setVisibleColumns([]);
+    setRows([]);
+    setSchema(null);
+    setTotal(null);
+  };
+
+  const handleDatabaseChange = async (db: string) => {
+    if (db === selectedDatabase) return;
+    setSelectedDatabase(db);
+    setSelectedCollection(null);
+    resetTableView();
+    await loadCollectionNames(db);
+  };
+
+  const handleCollectionChange = (name: string) => {
+    if (name === selectedCollection) return;
+    setSelectedCollection(name);
+    resetTableView();
+  };
+
   // Load schema to get field list
   const loadSchema = async () => {
     if (!activeConnectionId || !selectedCollection) return;
@@ -180,13 +249,21 @@ export function DataExplorerPage() {
   };
 
   useEffect(() => {
+    void loadDatabases();
+  }, [activeConnectionId]);
+
+  useEffect(() => {
+    void loadCollectionNames(selectedDatabase);
+  }, [activeConnectionId, selectedDatabase]);
+
+  useEffect(() => {
     void loadSchema();
-  }, [activeConnectionId, selectedCollection]);
+  }, [activeConnectionId, selectedCollection, selectedDatabase]);
 
   // Re-load after schema arrives so we can exclude vector fields
   useEffect(() => {
     if (schema) void loadData();
-  }, [schema, activeConnectionId, selectedCollection, page, pageSize]);
+  }, [schema, activeConnectionId, selectedCollection, selectedDatabase, page, pageSize]);
 
   // Get schema fields for insert form
   const schemaFields: Array<{ name: string; type: string; isVector: boolean }> =
@@ -463,13 +540,47 @@ export function DataExplorerPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="border-b p-4 flex items-center gap-3">
-        <h2 className="font-semibold text-lg">{selectedCollection}</h2>
+      <div className="border-b p-4 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <Select
+            value={selectedDatabase || ""}
+            onValueChange={(v) => void handleDatabaseChange(v)}
+            disabled={switcherLoading || databases.length === 0}
+          >
+            <SelectTrigger className="w-36 h-9" title="切换数据库">
+              <SelectValue placeholder="选择数据库" />
+            </SelectTrigger>
+            <SelectContent>
+              {databases.map((db) => (
+                <SelectItem key={db} value={db}>
+                  {db}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-muted-foreground text-sm">/</span>
+          <Select
+            value={selectedCollection || ""}
+            onValueChange={handleCollectionChange}
+            disabled={switcherLoading || collections.length === 0}
+          >
+            <SelectTrigger className="w-48 h-9" title="切换集合">
+              <SelectValue placeholder="选择集合" />
+            </SelectTrigger>
+            <SelectContent>
+              {collections.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={resetColumnWidths} title="重置列宽">
           重置列宽
         </Button>
-        <Button variant="outline" size="sm" onClick={loadData}>
+        <Button variant="outline" size="sm" onClick={loadData} disabled={!selectedCollection}>
           <RefreshCw className="h-4 w-4" />
         </Button>
         <Button

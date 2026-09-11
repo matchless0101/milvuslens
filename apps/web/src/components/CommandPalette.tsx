@@ -29,9 +29,9 @@ export function CommandPalette() {
   }, [commandPaletteOpen]);
 
   const commands = [
-    { id: "connect", label: "前往 连接管理", icon: Zap, action: () => setCurrentPage("connect") },
-    { id: "explorer", label: "前往 数据浏览", icon: FolderTree, action: () => setCurrentPage("explorer") },
-    { id: "data", label: "前往 数据查看", icon: Table2, action: () => setCurrentPage("data") },
+    { id: "connect", label: "前往 连接", icon: Zap, action: () => setCurrentPage("connect") },
+    { id: "explorer", label: "前往 库与集合", icon: FolderTree, action: () => setCurrentPage("explorer") },
+    { id: "data", label: "前往 数据与搜索", icon: Table2, action: () => setCurrentPage("data") },
     { id: "settings", label: "前往 设置", icon: Settings, action: () => setCurrentPage("settings") },
   ];
 

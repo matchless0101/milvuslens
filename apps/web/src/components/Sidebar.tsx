@@ -11,10 +11,10 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { id: "connect" as const, label: "连接", icon: Zap },
-  { id: "explorer" as const, label: "数据浏览", icon: FolderTree },
-  { id: "data" as const, label: "数据查看", icon: Table2 },
-  { id: "settings" as const, label: "设置", icon: Settings },
+  { id: "connect" as const, label: "连接", icon: Zap, hint: "管理服务器连接" },
+  { id: "explorer" as const, label: "库与集合", icon: FolderTree, hint: "浏览数据库与集合" },
+  { id: "data" as const, label: "数据与搜索", icon: Table2, hint: "查看数据、语义搜索" },
+  { id: "settings" as const, label: "设置", icon: Settings, hint: "Embedding 等配置" },
 ];
 
 export function Sidebar() {
@@ -40,6 +40,7 @@ export function Sidebar() {
           <button
             key={item.id}
             onClick={() => setCurrentPage(item.id)}
+            title={item.hint}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
               currentPage === item.id
@@ -48,7 +49,7 @@ export function Sidebar() {
             )}
           >
             <item.icon className="h-4 w-4" />
-            {item.label}
+            <span className="flex-1 text-left">{item.label}</span>
           </button>
         ))}
       </nav>

@@ -261,6 +261,45 @@ export function ExplorerPage() {
     loadCollections();
   };
 
+  const handleCreateIndex = async (name: string) => {
+    if (!activeConnectionId) return;
+    // Guess vector field from schema; default name used by this app
+    let fieldName = "embedding";
+    const schemaRes = await api.getCollectionSchema(
+      activeConnectionId,
+      name,
+      selectedDatabase || undefined
+    );
+    if (schemaRes.success) {
+      const fields =
+        (schemaRes.data as { schema?: { fields?: Array<{ name: string; data_type: string | number }> } })
+          ?.schema?.fields || [];
+      const vf = fields.find(
+        (f) => f.data_type === "FloatVector" || f.data_type === 101
+      );
+      if (vf) fieldName = vf.name;
+    }
+    toast({ title: "正在创建向量索引…", description: `${name}.${fieldName}` });
+    const res = await api.createIndex(activeConnectionId, name, fieldName, {
+      indexType: "AUTOINDEX",
+      metricType: "COSINE",
+      db: selectedDatabase || undefined,
+    });
+    if (!res.success) {
+      toast({
+        variant: "destructive",
+        title: "创建索引失败",
+        description: translateError(res.error),
+      });
+      return;
+    }
+    toast({
+      title: "索引已创建",
+      description: `${name}.${fieldName}，可先「加载」再做语义搜索`,
+    });
+    loadCollections();
+  };
+
   const handleViewData = (name: string) => {
     setSelectedCollection(name);
     setCurrentPage("data");
@@ -547,6 +586,9 @@ export function ExplorerPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    <Button size="sm" variant="outline" onClick={() => handleCreateIndex(col.name)} title="为向量字段创建索引（搜索必需）">
+                      建索引
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => handleViewData(col.name)}>
                       <Table2 className="h-4 w-4 mr-1" />
                       查看数据

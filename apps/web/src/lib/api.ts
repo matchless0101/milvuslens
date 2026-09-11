@@ -99,6 +99,22 @@ export const api = {
     request(`/collections/${name}/release${qs({ connectionId, db })}`, {
       method: "POST",
     }),
+  createIndex: (
+    connectionId: string,
+    name: string,
+    fieldName: string,
+    opts?: { indexType?: string; metricType?: string; db?: string }
+  ) =>
+    request(`/collections/${name}/index`, {
+      method: "POST",
+      body: JSON.stringify({
+        connectionId,
+        fieldName,
+        indexType: opts?.indexType || "AUTOINDEX",
+        metricType: opts?.metricType || "COSINE",
+        db: opts?.db,
+      }),
+    }),
 
   // Data
   queryData: (connectionId: string, name: string, body: unknown, db?: string) =>

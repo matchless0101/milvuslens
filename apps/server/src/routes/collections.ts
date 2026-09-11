@@ -170,6 +170,52 @@ export async function collectionRoutes(app: FastifyInstance) {
     }
   );
 
+  // Create vector index on an existing collection (required before search)
+  app.post<{
+    Params: { name: string };
+    Body: {
+      connectionId: string;
+      fieldName: string;
+      indexType?: string;
+      metricType?: string;
+      db?: string;
+    };
+  }>("/collections/:name/index", async (req, reply): Promise<ApiResponse> => {
+    try {
+      const { name } = req.params;
+      const {
+        connectionId,
+        fieldName,
+        indexType = "AUTOINDEX",
+        metricType = "COSINE",
+        db,
+      } = req.body;
+      if (!connectionId || !fieldName) {
+        return reply
+          .code(400)
+          .send({ success: false, error: "connectionId and fieldName are required" });
+      }
+      const client = getClient(connectionId);
+      const indexParams: Record<string, unknown> = {
+        collection_name: name,
+        field_name: fieldName,
+        index_name: `${fieldName}_idx`,
+        index_type: indexType,
+        metric_type: metricType,
+        params: JSON.stringify({}),
+      };
+      if (db) indexParams.db_name = db;
+      await client.createIndex(indexParams as unknown as Parameters<typeof client.createIndex>[0]);
+      return {
+        success: true,
+        data: { collection: name, fieldName, indexType, metricType },
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create index";
+      return reply.code(500).send({ success: false, error: message });
+    }
+  });
+
   // Delete collection
   app.delete<{ Params: { name: string }; Querystring: { connectionId: string; db?: string } }>(
     "/collections/:name",

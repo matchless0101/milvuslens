@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, type MouseEvent as ReactMouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
@@ -374,6 +374,11 @@ export function DataExplorerPage() {
 
   // Virtualized row list — only mount rows near the viewport
   const ROW_HEIGHT = 36;
+  const DEFAULT_COL_WIDTH = 140;
+  const MIN_COL_WIDTH = 72;
+  const MAX_COL_WIDTH = 720;
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableRef.current,
@@ -381,8 +386,37 @@ export function DataExplorerPage() {
     overscan: 12,
   });
 
-  // Stable grid template so header and body columns align
-  const gridTemplate = columns.map(() => "minmax(140px, 1fr)").join(" ");
+  // Explicit px widths so header/body stay aligned while dragging
+  const gridTemplate = columns
+    .map((col) => `${columnWidths[col] ?? DEFAULT_COL_WIDTH}px`)
+    .join(" ");
+
+  const startColumnResize = (col: string, e: ReactMouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = columnWidths[col] ?? DEFAULT_COL_WIDTH;
+
+    const onMove = (ev: MouseEvent) => {
+      const next = Math.min(
+        Math.max(startWidth + (ev.clientX - startX), MIN_COL_WIDTH),
+        MAX_COL_WIDTH
+      );
+      setColumnWidths((prev) => ({ ...prev, [col]: next }));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  const resetColumnWidths = () => setColumnWidths({});
 
   // Format cell value
   const formatValue = (val: unknown): string => {
@@ -432,6 +466,9 @@ export function DataExplorerPage() {
       <div className="border-b p-4 flex items-center gap-3">
         <h2 className="font-semibold text-lg">{selectedCollection}</h2>
         <div className="flex-1" />
+        <Button variant="outline" size="sm" onClick={resetColumnWidths} title="重置列宽">
+          重置列宽
+        </Button>
         <Button variant="outline" size="sm" onClick={loadData}>
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -703,9 +740,17 @@ export function DataExplorerPage() {
                   {columns.map((col) => (
                     <div
                       key={col}
-                      className="px-3 py-2 text-left font-medium text-muted-foreground truncate"
+                      className="relative px-3 py-2 text-left font-medium text-muted-foreground truncate select-none"
+                      title={col}
                     >
                       {col}
+                      <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary"
+                        onMouseDown={(e) => startColumnResize(col, e)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
                   ))}
                 </div>

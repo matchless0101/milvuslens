@@ -74,18 +74,19 @@ export function SettingsPage() {
               placeholder="https://api.openai.com/v1"
             />
             <p className="text-xs text-muted-foreground">
-              支持 OpenAI、智谱、通义等 OpenAI 兼容接口
+              支持 OpenAI、智谱、通义等兼容接口；本地 Ollama 填
+              http://127.0.0.1:11434/v1
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="apiKey">API Key</Label>
+            <Label htmlFor="apiKey">API Key（本地 Ollama 可留空）</Label>
             <Input
               id="apiKey"
               type="password"
               value={form.apiKey}
               onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-              placeholder="sk-..."
+              placeholder="sk-... 或 ollama"
             />
           </div>
 
@@ -95,11 +96,11 @@ export function SettingsPage() {
               id="model"
               value={form.model}
               onChange={(e) => setForm({ ...form, model: e.target.value })}
-              placeholder="text-embedding-3-small"
+              placeholder="text-embedding-3-small 或 qwen3-embedding:0.6b"
             />
             <p className="text-xs text-muted-foreground">
-              常用: text-embedding-3-small, text-embedding-3-large,
-              embedding-3
+              云服务常用 text-embedding-3-small；本地 Ollama 可用
+              qwen3-embedding:0.6b（1024 维）
             </p>
           </div>
 

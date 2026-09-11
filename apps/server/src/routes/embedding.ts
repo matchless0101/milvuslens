@@ -8,11 +8,21 @@ interface EmbedBody {
 }
 
 function buildEmbeddingHeaders(config: EmbeddingConfig): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${config.apiKey}`,
+  };
+  // Local providers (Ollama etc.) often ignore auth; only send a token when provided
+  if (config.apiKey) {
+    headers.Authorization = `Bearer ${config.apiKey}`;
+  }
+  return {
+    ...headers,
     ...config.headers,
   };
+}
+
+function isEmbeddingConfigReady(config: EmbeddingConfig | undefined): boolean {
+  return Boolean(config?.baseUrl && config?.model);
 }
 
 export async function embeddingRoutes(app: FastifyInstance) {
@@ -21,7 +31,7 @@ export async function embeddingRoutes(app: FastifyInstance) {
     try {
       const { text, config } = req.body;
 
-      if (!config?.baseUrl || !config?.apiKey || !config?.model) {
+      if (!isEmbeddingConfigReady(config)) {
         return reply
           .code(400)
           .send({ success: false, error: "Embedding config is incomplete" });
@@ -81,7 +91,7 @@ export async function embeddingRoutes(app: FastifyInstance) {
       try {
         const { config } = req.body;
 
-        if (!config?.baseUrl || !config?.model) {
+        if (!isEmbeddingConfigReady(config)) {
           return reply
             .code(400)
             .send({ success: false, error: "Embedding config is incomplete" });

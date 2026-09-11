@@ -401,10 +401,11 @@ export function DataExplorerPage() {
   const handleSearch = async () => {
     if (!searchQuery.trim() || !activeConnectionId || !selectedCollection)
       return;
-    if (!embeddingConfig.apiKey) {
+    // apiKey is optional for local providers like Ollama
+    if (!embeddingConfig.baseUrl || !embeddingConfig.model) {
       toast({
         title: "未配置 Embedding",
-        description: "请先在设置中配置 Embedding API",
+        description: "请先在设置中填写 API Base URL 与模型名称",
       });
       setCurrentPage("settings");
       return;

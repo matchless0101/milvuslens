@@ -116,7 +116,7 @@ export function DataExplorerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchField, setSearchField] = useState("");
   const [topK, setTopK] = useState(10);
-  const [metricType, setMetricType] = useState<string>("COSINE");
+  const [metricType, setMetricType] = useState<string>("IP");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<
     Array<{ id: string | number; score: number; data: Record<string, unknown> }>

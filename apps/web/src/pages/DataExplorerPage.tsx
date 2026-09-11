@@ -65,6 +65,7 @@ export function DataExplorerPage() {
   const [filter, setFilter] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [schema, setSchema] = useState<DescribeCollectionResult | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Insert dialog state
   const [insertOpen, setInsertOpen] = useState(false);
@@ -136,6 +137,12 @@ export function DataExplorerPage() {
       if (!selectedDatabase && dbs.length > 0) {
         setSelectedDatabase(dbs[0]);
       }
+    } else {
+      toast({
+        variant: "destructive",
+        title: "加载数据库失败",
+        description: translateError(res.error),
+      });
     }
   };
 
@@ -156,6 +163,12 @@ export function DataExplorerPage() {
       if (!selectedCollection && names.length > 0) {
         setSelectedCollection(names[0]);
       }
+    } else {
+      toast({
+        variant: "destructive",
+        title: "加载集合列表失败",
+        description: translateError(res.error),
+      });
     }
   };
 
@@ -170,6 +183,7 @@ export function DataExplorerPage() {
     setRows([]);
     setSchema(null);
     setTotal(null);
+    setLoadError(null);
   };
 
   const handleDatabaseChange = async (db: string) => {
@@ -211,6 +225,13 @@ export function DataExplorerPage() {
       if (typeof metric === "string") {
         setMetricType(metric);
       }
+    } else {
+      setLoadError(translateError(res.error));
+      toast({
+        variant: "destructive",
+        title: "加载集合结构失败",
+        description: translateError(res.error),
+      });
     }
   };
 
@@ -237,6 +258,7 @@ export function DataExplorerPage() {
     );
     setLoading(false);
     if (res.success) {
+      setLoadError(null);
       const data = res.data as { data: Record<string, unknown>[]; total?: number };
       const newRows = data?.data || [];
       setRows(newRows);
@@ -245,6 +267,13 @@ export function DataExplorerPage() {
       if (visibleColumns.length === 0 && newRows.length > 0) {
         setVisibleColumns(Object.keys(newRows[0]));
       }
+    } else {
+      setLoadError(translateError(res.error));
+      toast({
+        variant: "destructive",
+        title: "加载数据失败",
+        description: translateError(res.error),
+      });
     }
   };
 
@@ -869,9 +898,34 @@ export function DataExplorerPage() {
               <div className="flex items-center justify-center h-full">
                 <p className="text-muted-foreground">加载中...</p>
               </div>
+            ) : loadError ? (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-6">
+                <p className="text-sm font-medium text-destructive">数据加载失败</p>
+                <p className="text-sm text-muted-foreground max-w-md">{loadError}</p>
+                <Button size="sm" variant="outline" onClick={() => void loadData()}>
+                  重试
+                </Button>
+              </div>
             ) : rows.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">暂无数据</p>
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-6">
+                <p className="text-sm text-muted-foreground">
+                  {filter
+                    ? "当前筛选条件下没有匹配数据"
+                    : "集合中暂无数据"}
+                </p>
+                {filter && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setFilter("");
+                      setPage(0);
+                      void loadData();
+                    }}
+                  >
+                    清除筛选
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="min-w-max">

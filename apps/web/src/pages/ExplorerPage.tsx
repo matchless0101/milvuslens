@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
 import { translateError } from "@/lib/errors";
+import { toast } from "@/hooks/use-toast";
+import { formatCollectionState } from "@/lib/collectionState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,6 +114,15 @@ export function ExplorerPage() {
     setColLoading(false);
     if (res.success) {
       setCollections((res.data as CollectionInfo[]) || []);
+      setError(null);
+    } else {
+      const msg = translateError(res.error);
+      setError(msg);
+      toast({
+        variant: "destructive",
+        title: "加载集合失败",
+        description: msg,
+      });
     }
   };
 
@@ -135,18 +146,36 @@ export function ExplorerPage() {
   const handleCreateDb = async () => {
     if (!newDbName.trim() || !activeConnectionId) return;
     setCreatingDb(true);
-    await api.createDatabase(activeConnectionId, newDbName.trim());
+    const res = await api.createDatabase(activeConnectionId, newDbName.trim());
     setCreatingDb(false);
-    setNewDbName("");
-    loadDatabases();
+    if (res.success) {
+      setNewDbName("");
+      toast({ title: "数据库已创建", description: newDbName.trim() });
+      loadDatabases();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "创建数据库失败",
+        description: translateError(res.error),
+      });
+    }
   };
 
   const handleDeleteDb = async (name: string) => {
     if (!activeConnectionId) return;
     setDeleting(true);
-    await api.deleteDatabase(activeConnectionId, name);
+    const res = await api.deleteDatabase(activeConnectionId, name);
     setDeleting(false);
     setDeleteDbName(null);
+    if (!res.success) {
+      toast({
+        variant: "destructive",
+        title: "删除数据库失败",
+        description: translateError(res.error),
+      });
+      return;
+    }
+    toast({ title: "数据库已删除", description: name });
     if (selectedDatabase === name) setSelectedDatabase(null);
     loadDatabases();
   };
@@ -173,28 +202,62 @@ export function ExplorerPage() {
     if (res.success) {
       setCreateOpen(false);
       setForm({ ...form, name: "" });
+      toast({ title: "集合已创建", description: form.name.trim() });
       loadCollections();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "创建集合失败",
+        description: translateError(res.error),
+      });
     }
   };
 
   const handleDeleteCol = async (name: string) => {
     if (!activeConnectionId) return;
     setDeleting(true);
-    await api.deleteCollection(activeConnectionId, name, selectedDatabase || undefined);
+    const res = await api.deleteCollection(activeConnectionId, name, selectedDatabase || undefined);
     setDeleting(false);
     setDeleteColName(null);
+    if (!res.success) {
+      toast({
+        variant: "destructive",
+        title: "删除集合失败",
+        description: translateError(res.error),
+      });
+      return;
+    }
+    toast({ title: "集合已删除", description: name });
     loadCollections();
   };
 
   const handleLoadCol = async (name: string) => {
     if (!activeConnectionId) return;
-    await api.loadCollection(activeConnectionId, name, selectedDatabase || undefined);
+    const res = await api.loadCollection(activeConnectionId, name, selectedDatabase || undefined);
+    if (!res.success) {
+      toast({
+        variant: "destructive",
+        title: "加载集合失败",
+        description: translateError(res.error),
+      });
+      return;
+    }
+    toast({ title: "集合已加载", description: name });
     loadCollections();
   };
 
   const handleReleaseCol = async (name: string) => {
     if (!activeConnectionId) return;
-    await api.releaseCollection(activeConnectionId, name, selectedDatabase || undefined);
+    const res = await api.releaseCollection(activeConnectionId, name, selectedDatabase || undefined);
+    if (!res.success) {
+      toast({
+        variant: "destructive",
+        title: "释放集合失败",
+        description: translateError(res.error),
+      });
+      return;
+    }
+    toast({ title: "集合已释放", description: name });
     loadCollections();
   };
 
@@ -478,7 +541,7 @@ export function ExplorerPage() {
                       <p className="font-medium">{col.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {col.rowCount >= 0
-                          ? `${col.rowCount.toLocaleString()} 行 · ${col.indexCount} 索引 · ${col.state || "—"}`
+                          ? `${col.rowCount.toLocaleString()} 行 · ${col.indexCount} 索引 · ${formatCollectionState(col.state)}`
                           : "加载统计中..."}
                       </p>
                     </div>
@@ -488,11 +551,13 @@ export function ExplorerPage() {
                       <Table2 className="h-4 w-4 mr-1" />
                       查看数据
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleLoadCol(col.name)} title="加载">
-                      <Play className="h-4 w-4" />
+                    <Button size="sm" variant="outline" onClick={() => handleLoadCol(col.name)} title="加载集合到内存">
+                      <Play className="h-4 w-4 mr-1" />
+                      加载
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleReleaseCol(col.name)} title="释放">
-                      <Square className="h-4 w-4" />
+                    <Button size="sm" variant="ghost" onClick={() => handleReleaseCol(col.name)} title="从内存释放">
+                      <Square className="h-4 w-4 mr-1" />
+                      释放
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setDeleteColName(col.name)}>
                       <Trash2 className="h-4 w-4" />

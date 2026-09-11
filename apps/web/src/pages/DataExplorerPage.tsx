@@ -540,17 +540,27 @@ export function DataExplorerPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="border-b p-4 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="border-b p-4 flex items-end gap-3 flex-wrap">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">数据库</Label>
           <Select
             value={selectedDatabase || ""}
             onValueChange={(v) => void handleDatabaseChange(v)}
             disabled={switcherLoading || databases.length === 0}
           >
-            <SelectTrigger className="w-36 h-9" title="切换数据库">
-              <SelectValue placeholder="选择数据库" />
+            <SelectTrigger className="w-40 h-9" title="切换数据库">
+              <SelectValue
+                placeholder={
+                  switcherLoading ? "加载中..." : "选择数据库"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
+              {databases.length === 0 && (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                  暂无数据库
+                </div>
+              )}
               {databases.map((db) => (
                 <SelectItem key={db} value={db}>
                   {db}
@@ -558,16 +568,32 @@ export function DataExplorerPage() {
               ))}
             </SelectContent>
           </Select>
-          <span className="text-muted-foreground text-sm">/</span>
+        </div>
+        <span className="text-muted-foreground text-sm pb-2.5">/</span>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">集合</Label>
           <Select
             value={selectedCollection || ""}
             onValueChange={handleCollectionChange}
-            disabled={switcherLoading || collections.length === 0}
+            disabled={switcherLoading || !selectedDatabase || collections.length === 0}
           >
-            <SelectTrigger className="w-48 h-9" title="切换集合">
-              <SelectValue placeholder="选择集合" />
+            <SelectTrigger className="w-52 h-9" title="切换集合">
+              <SelectValue
+                placeholder={
+                  switcherLoading
+                    ? "加载中..."
+                    : !selectedDatabase
+                      ? "请先选择数据库"
+                      : "选择集合"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
+              {collections.length === 0 && (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                  暂无集合
+                </div>
+              )}
               {collections.map((name) => (
                 <SelectItem key={name} value={name}>
                   {name}
@@ -577,10 +603,16 @@ export function DataExplorerPage() {
           </Select>
         </div>
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={resetColumnWidths} title="重置列宽">
+        <Button variant="outline" size="sm" onClick={resetColumnWidths} title="将所有列恢复为默认宽度">
           重置列宽
         </Button>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={!selectedCollection}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadData}
+          disabled={!selectedCollection}
+          title="重新加载当前集合的数据"
+        >
           <RefreshCw className="h-4 w-4" />
         </Button>
         <Button

@@ -10,6 +10,7 @@ import { JsonViewer } from "@/components/JsonViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type {
   DescribeCollectionResult,
   EmbedResponse,
@@ -38,6 +39,8 @@ import {
   X,
   Plus,
   Trash2,
+  Download,
+  History,
 } from "lucide-react";
 
 export function DataExplorerPage() {
@@ -49,6 +52,9 @@ export function DataExplorerPage() {
     setSelectedDatabase,
     setCurrentPage,
     embeddingConfig,
+    searchHistory,
+    addSearchHistory,
+    clearSearchHistory,
   } = useAppStore();
 
   // Database / collection switcher
@@ -121,7 +127,15 @@ export function DataExplorerPage() {
   const [searchResults, setSearchResults] = useState<
     Array<{ id: string | number; score: number; data: Record<string, unknown> }>
   >([]);
+  const [batchResults, setBatchResults] = useState<
+    Array<{
+      query: string;
+      results: Array<{ id: string | number; score: number; data: Record<string, unknown> }>;
+      error?: string;
+    }>
+  >([]);
   const [showSearchPanel, setShowSearchPanel] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
 
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -177,6 +191,7 @@ export function DataExplorerPage() {
     setFilter("");
     setSelectedRow(null);
     setSearchResults([]);
+    setBatchResults([]);
     setSearchQuery("");
     setSearchField("");
     setVisibleColumns([]);
@@ -398,10 +413,41 @@ export function DataExplorerPage() {
   };
 
   // Semantic search
+  type SearchHit = { id: string | number; score: number; data: Record<string, unknown> };
+  type OneSearchResult = { results: SearchHit[]; error?: string };
+
+  const runOneSearch = async (question: string): Promise<OneSearchResult> => {
+    if (!activeConnectionId || !selectedCollection) {
+      return { results: [], error: "未选择连接或集合" };
+    }
+
+    const embedRes = await api.embed(question, embeddingConfig);
+    if (!embedRes.success) {
+      return { results: [], error: translateError(embedRes.error) };
+    }
+    const embedding = (embedRes.data as EmbedResponse).embedding;
+    const searchRes = await api.searchData(
+      activeConnectionId,
+      selectedCollection,
+      {
+        vector: embedding,
+        vectorField: searchField,
+        topK,
+        metricType,
+      },
+      selectedDatabase || undefined
+    );
+    if (!searchRes.success) {
+      return { results: [], error: translateError(searchRes.error) };
+    }
+    return {
+      results: (searchRes.data as SearchHit[]) || [],
+    };
+  };
+
   const handleSearch = async () => {
     if (!searchQuery.trim() || !activeConnectionId || !selectedCollection)
       return;
-    // apiKey is optional for local providers like Ollama
     if (!embeddingConfig.baseUrl || !embeddingConfig.model) {
       toast({
         title: "未配置 Embedding",
@@ -411,46 +457,42 @@ export function DataExplorerPage() {
       return;
     }
 
+    const questions = searchQuery
+      .split(/\r?\n/)
+      .map((q) => q.trim())
+      .filter(Boolean);
+
+    if (questions.length === 0) return;
+
     setSearching(true);
     setSearchResults([]);
+    setBatchResults([]);
 
     try {
-      // Step 1: Embed the query
-      const embedRes = await api.embed(searchQuery, embeddingConfig);
-      if (!embedRes.success) {
-        toast({
-          variant: "destructive",
-          title: "Embedding 失败",
-          description: translateError(embedRes.error),
-        });
-        setSearching(false);
-        return;
-      }
-
-      const embedding = (embedRes.data as EmbedResponse).embedding;
-
-      // Step 2: Vector search
-      const searchRes = await api.searchData(
-        activeConnectionId,
-        selectedCollection,
-        {
-          vector: embedding,
-          vectorField: searchField,
-          topK,
-          metricType,
-        },
-        selectedDatabase || undefined
-      );
-
-      if (searchRes.success) {
-        setSearchResults(
-          (searchRes.data as typeof searchResults) || []
-        );
+      if (questions.length === 1) {
+        const { results, error } = await runOneSearch(questions[0]);
+        if (error) {
+          toast({
+            variant: "destructive",
+            title: "搜索失败",
+            description: error,
+          });
+        } else {
+          setSearchResults(results);
+          addSearchHistory(questions[0]);
+        }
       } else {
+        const batch: typeof batchResults = [];
+        for (const q of questions) {
+          const { results, error } = await runOneSearch(q);
+          batch.push({ query: q, results, error });
+          addSearchHistory(q);
+        }
+        setBatchResults(batch);
+        const failed = batch.filter((b) => b.error).length;
         toast({
-          variant: "destructive",
-          title: "搜索失败",
-          description: translateError(searchRes.error),
+          title: "批量搜索完成",
+          description: `共 ${batch.length} 个问题${failed ? `，${failed} 个失败` : ""}`,
         });
       }
     } catch (err) {
@@ -461,6 +503,60 @@ export function DataExplorerPage() {
       });
     }
     setSearching(false);
+  };
+
+  const pickPreviewText = (data: Record<string, unknown>): string => {
+    const skip = new Set(["embedding", "vector", "$meta"]);
+    for (const [k, v] of Object.entries(data)) {
+      if (skip.has(k) || k.toLowerCase().includes("vector")) continue;
+      if (typeof v === "string" && v.trim()) return v;
+    }
+    return "";
+  };
+
+  const exportCsv = () => {
+    const rowsOut: string[][] = [["question", "rank", "score", "id", "text"]];
+    if (batchResults.length > 0) {
+      for (const item of batchResults) {
+        if (item.error) {
+          rowsOut.push([item.query, "", "", "", `ERROR: ${item.error}`]);
+          continue;
+        }
+        item.results.forEach((r, i) => {
+          rowsOut.push([
+            item.query,
+            String(i + 1),
+            String(r.score),
+            String(r.id),
+            pickPreviewText(r.data),
+          ]);
+        });
+      }
+    } else {
+      searchResults.forEach((r, i) => {
+        rowsOut.push([
+          searchQuery.trim(),
+          String(i + 1),
+          String(r.score),
+          String(r.id),
+          pickPreviewText(r.data),
+        ]);
+      });
+    }
+    if (rowsOut.length <= 1) {
+      toast({ title: "没有可导出的结果" });
+      return;
+    }
+    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const csv = "﻿" + rowsOut.map((r) => r.map(esc).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `milvuslens-search-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "已导出 CSV" });
   };
 
   // COSINE/IP: higher is more similar. L2: lower is closer (distance).
@@ -661,15 +757,59 @@ export function DataExplorerPage() {
           {/* Semantic search panel - toggleable */}
           {showSearchPanel && (
             <div className="border-b p-4 bg-muted/30">
-              <div className="flex items-end gap-3">
-                <div className="flex-1 space-y-1">
-                  <Label className="text-xs">输入问题</Label>
-                  <Input
-                    placeholder="例如: What is the capital of France?"
+              <div className="flex items-start gap-3 flex-wrap">
+                <div className="flex-1 min-w-[240px] space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">输入问题（多行可批量搜索）</Label>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setShowHistory(!showHistory)}
+                      >
+                        <History className="h-3 w-3 mr-1" />
+                        历史
+                      </Button>
+                      {searchHistory.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs"
+                          onClick={clearSearchHistory}
+                        >
+                          清空历史
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <Textarea
+                    placeholder={"例如：疲劳试验的参数是什么？\n也可每行一个问题，一次批量搜索"}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    className="min-h-[72px]"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        void handleSearch();
+                      }
+                    }}
                   />
+                  {showHistory && searchHistory.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {searchHistory.map((h) => (
+                        <button
+                          key={h}
+                          type="button"
+                          className="text-xs px-2 py-0.5 rounded border bg-background hover:bg-accent max-w-[220px] truncate"
+                          title={h}
+                          onClick={() => setSearchQuery(h)}
+                        >
+                          {h}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {vectorFields.length > 0 && (
                   <div className="space-y-1">
@@ -712,13 +852,25 @@ export function DataExplorerPage() {
                     max={100}
                   />
                 </div>
-                <Button onClick={handleSearch} disabled={searching}>
-                  {searching ? "搜索中..." : "搜索"}
-                </Button>
+                <div className="flex flex-col gap-1">
+                  <Button onClick={() => void handleSearch()} disabled={searching}>
+                    {searching ? "搜索中..." : "搜索"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportCsv}
+                    disabled={searchResults.length === 0 && batchResults.length === 0}
+                    title="将当前搜索结果导出为 CSV"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    导出CSV
+                  </Button>
+                </div>
               </div>
 
-              {/* Search results */}
-              {searchResults.length > 0 && (
+              {/* Single-question results */}
+              {batchResults.length === 0 && searchResults.length > 0 && (
                 <div className="mt-3 space-y-2 max-h-48 overflow-auto">
                   <p className="text-xs text-muted-foreground">
                     找到 {searchResults.length} 条结果 · metric: {metricType}
@@ -750,6 +902,55 @@ export function DataExplorerPage() {
                           )?.[1]
                         )}
                       </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Batch results */}
+              {batchResults.length > 0 && (
+                <div className="mt-3 space-y-3 max-h-64 overflow-auto">
+                  <p className="text-xs text-muted-foreground">
+                    批量结果 · {batchResults.length} 个问题 · 可导出 CSV
+                  </p>
+                  {batchResults.map((item, qi) => (
+                    <div key={qi} className="border rounded bg-background p-2">
+                      <p className="text-sm font-medium mb-1">
+                        Q{qi + 1}. {item.query}
+                      </p>
+                      {item.error ? (
+                        <p className="text-xs text-destructive">{item.error}</p>
+                      ) : item.results.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">无结果</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {item.results.slice(0, 3).map((r, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/40 rounded px-1"
+                              onClick={() => setSelectedRow(r.data)}
+                            >
+                              <span className="text-muted-foreground w-5">#{i + 1}</span>
+                              <span className="text-primary font-semibold w-16">
+                                {formatScore(r.score)}
+                              </span>
+                              <span className="truncate flex-1">
+                                {pickPreviewText(r.data) ||
+                                  formatValue(
+                                    Object.entries(r.data).find(
+                                      ([k]) => !k.includes("vector") && k !== "id"
+                                    )?.[1]
+                                  )}
+                              </span>
+                            </div>
+                          ))}
+                          {item.results.length > 3 && (
+                            <p className="text-[11px] text-muted-foreground">
+                              另有 {item.results.length - 3} 条，完整结果见导出 CSV
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

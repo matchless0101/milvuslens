@@ -40,6 +40,11 @@ interface AppState {
   rememberSecrets: boolean;
   setRememberSecrets: (v: boolean) => void;
 
+  // Recent semantic-search queries (newest first, unique, max 20)
+  searchHistory: string[];
+  addSearchHistory: (q: string) => void;
+  clearSearchHistory: () => void;
+
   // Command palette
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
@@ -96,6 +101,16 @@ export const useAppStore = create<AppState>()(
       rememberSecrets: false,
       setRememberSecrets: (v) => set({ rememberSecrets: v }),
 
+      searchHistory: [],
+      addSearchHistory: (q) =>
+        set((s) => {
+          const trimmed = q.trim();
+          if (!trimmed) return s;
+          const next = [trimmed, ...s.searchHistory.filter((x) => x !== trimmed)];
+          return { searchHistory: next.slice(0, 20) };
+        }),
+      clearSearchHistory: () => set({ searchHistory: [] }),
+
       // Command palette
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
@@ -107,6 +122,7 @@ export const useAppStore = create<AppState>()(
         return {
           theme: s.theme,
           rememberSecrets: remember,
+          searchHistory: s.searchHistory,
           connections: s.connections.map((c) => ({
             ...c,
             password: remember ? c.password : undefined,

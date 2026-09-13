@@ -75,7 +75,7 @@ export async function dataRoutes(app: FastifyInstance) {
         anns_field: vectorField,
         limit: topK,
         metric_type: metricType || "COSINE",
-        params: JSON.stringify({ nprobe: 16 }),
+        params: { nprobe: 16 },
         output_fields: outputFields || ["*"],
         ...(filter ? { filter } : {}),
       };

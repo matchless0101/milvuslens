@@ -183,7 +183,7 @@ export async function collectionRoutes(app: FastifyInstance) {
             index_name: `${idx.fieldName}_idx`,
             index_type: idx.indexType,
             metric_type: idx.metricType,
-            params: JSON.stringify(idx.params || {}),
+            params: idx.params || {},
           };
           if (db) indexParams.db_name = db;
           await client.createIndex(indexParams as unknown as Parameters<typeof client.createIndex>[0]);
@@ -229,7 +229,7 @@ export async function collectionRoutes(app: FastifyInstance) {
         index_name: `${fieldName}_idx`,
         index_type: indexType,
         metric_type: metricType,
-        params: JSON.stringify({}),
+        params: {},
       };
       if (db) indexParams.db_name = db;
       await client.createIndex(indexParams as unknown as Parameters<typeof client.createIndex>[0]);

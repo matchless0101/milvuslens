@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { ColumnVisibility } from "@/components/ColumnVisibility";
 import { ImportDialog } from "@/components/ImportDialog";
+import { EvaluateDialog } from "@/components/EvaluateDialog";
 import { JsonViewer } from "@/components/JsonViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,7 @@ export function DataExplorerPage() {
   // Insert dialog state
   const [insertOpen, setInsertOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [evalOpen, setEvalOpen] = useState(false);
   const [insertData, setInsertData] = useState<Record<string, string>>({});
   const [inserting, setInserting] = useState(false);
 
@@ -868,6 +870,24 @@ export function DataExplorerPage() {
                     <Download className="h-3.5 w-3.5 mr-1" />
                     导出CSV
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEvalOpen(true)}
+                    title="批量问题召回评测"
+                  >
+                    评测
+                  </Button>
+                  <EvaluateDialog
+                    open={evalOpen}
+                    onOpenChange={setEvalOpen}
+                    connectionId={activeConnectionId}
+                    collectionName={selectedCollection}
+                    database={selectedDatabase}
+                    vectorField={searchField}
+                    metricType={metricType}
+                    embeddingConfig={embeddingConfig}
+                  />
                 </div>
               </div>
 

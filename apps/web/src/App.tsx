@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useAppStore } from "./stores/app";
+import { tryAutoReconnect } from "./lib/autoReconnect";
 import { Sidebar } from "./components/Sidebar";
 import { ConnectPage } from "./pages/ConnectPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
@@ -15,6 +16,14 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
+
+  // Restore last Milvus connection after page refresh
+  useEffect(() => {
+    const { activeConnectionId } = useAppStore.getState();
+    if (!activeConnectionId) {
+      void tryAutoReconnect();
+    }
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

@@ -1,4 +1,5 @@
 import { useAppStore } from "@/stores/app";
+import { tryAutoReconnect } from "@/lib/autoReconnect";
 
 const API_BASE = "/api";
 
@@ -7,10 +8,14 @@ function isConnectionLost(message: string | undefined): boolean {
   return message.toLowerCase().includes("connection not found");
 }
 
-function handleConnectionLost() {
+async function handleConnectionLost() {
   const store = useAppStore.getState();
   store.setActiveConnection(null);
-  store.setCurrentPage("connect");
+  // Attempt silent restore before bouncing the user to the connect page
+  const ok = await tryAutoReconnect();
+  if (!ok) {
+    store.setCurrentPage("connect");
+  }
 }
 
 async function request<T>(
@@ -28,7 +33,7 @@ async function request<T>(
       json.success === false &&
       isConnectionLost(json.error)
     ) {
-      handleConnectionLost();
+      void handleConnectionLost();
     }
     return json;
   } catch (err) {

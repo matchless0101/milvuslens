@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { rememberConnection } from "@/lib/autoReconnect";
 import { Switch } from "@/components/ui/switch";
 import { Plug, Trash2, CheckCircle, XCircle } from "lucide-react";
 import type { ConnectionConfig } from "@milvuslens/shared";
@@ -81,6 +82,7 @@ export function ConnectPage() {
       const savedConfig = { ...config, id: serverId };
       addConnection(savedConfig);
       setActiveConnection(serverId);
+      rememberConnection(savedConfig);
       setCurrentPage("explorer");
     } else {
       setTestResult({ ok: false, msg: translateError(res.error) });
@@ -116,8 +118,10 @@ export function ConnectPage() {
         void api.disconnect(conn.id);
       }
       removeConnection(conn.id);
-      addConnection({ ...payload, id: serverId });
+      const next = { ...payload, id: serverId };
+      addConnection(next);
       setActiveConnection(serverId);
+      rememberConnection(next);
       setCurrentPage("explorer");
     } else {
       setTestResult({ ok: false, msg: translateError(res.error) });

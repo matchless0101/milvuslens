@@ -11,7 +11,8 @@
     "lint": "eslint apps packages",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "smoke": "node scripts/smoke-api.mjs"
+    "smoke": "node scripts/smoke-api.mjs",
+    "smoke:rag": "node scripts/local-rag-test.mjs"
   },
   "engines": {
     "node": ">=20"

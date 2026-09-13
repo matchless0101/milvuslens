@@ -12,9 +12,12 @@ interface AppState {
   connections: ConnectionConfig[];
   activeConnectionId: string | null;
   activeConnection: ConnectionConfig | null;
+  /** Last successfully used connection — used for auto-reconnect after refresh/server restart */
+  lastConnection: ConnectionConfig | null;
   addConnection: (config: ConnectionConfig) => void;
   removeConnection: (id: string) => void;
   setActiveConnection: (id: string | null) => void;
+  setLastConnection: (config: ConnectionConfig | null) => void;
 
   // Navigation
   currentPage: "connect" | "explorer" | "data" | "settings";
@@ -62,6 +65,7 @@ export const useAppStore = create<AppState>()(
       connections: [],
       activeConnectionId: null,
       activeConnection: null,
+      lastConnection: null,
       addConnection: (config) =>
         set((s) => ({ connections: [...s.connections, config] })),
       removeConnection: (id) =>
@@ -77,6 +81,7 @@ export const useAppStore = create<AppState>()(
           activeConnectionId: id,
           activeConnection: s.connections.find((c) => c.id === id) || null,
         })),
+      setLastConnection: (config) => set({ lastConnection: config }),
 
       // Navigation
       currentPage: "connect",
@@ -123,6 +128,12 @@ export const useAppStore = create<AppState>()(
           theme: s.theme,
           rememberSecrets: remember,
           searchHistory: s.searchHistory,
+          lastConnection: s.lastConnection
+            ? {
+                ...s.lastConnection,
+                password: remember ? s.lastConnection.password : undefined,
+              }
+            : null,
           connections: s.connections.map((c) => ({
             ...c,
             password: remember ? c.password : undefined,

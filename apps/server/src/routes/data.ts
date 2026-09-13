@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import type { ApiResponse, QueryRequest, SearchRequest } from "@milvuslens/shared";
+import type { ApiResponse, EmbeddingConfig, QueryRequest, SearchRequest } from "@milvuslens/shared";
 import { getClient } from "../services/milvus.js";
+import { embedTexts } from "../services/embed.js";
 
 export async function dataRoutes(app: FastifyInstance) {
   // Query data
@@ -98,6 +99,82 @@ export async function dataRoutes(app: FastifyInstance) {
       return { success: true, data: results };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Search failed";
+      return reply.code(500).send({ success: false, error: message });
+    }
+  });
+
+  // Batch import rows; optionally embed a text field into a vector field
+  app.post<{
+    Params: { name: string };
+    Querystring: { connectionId: string; db?: string };
+    Body: {
+      rows: Record<string, unknown>[];
+      embed?: {
+        textField: string;
+        vectorField: string;
+        config: EmbeddingConfig;
+      };
+      batchSize?: number;
+    };
+  }>("/collections/:name/import", async (req, reply): Promise<ApiResponse> => {
+    try {
+      const { name } = req.params;
+      const { connectionId, db } = req.query;
+      const { rows, embed, batchSize = 32 } = req.body;
+
+      if (!rows || rows.length === 0) {
+        return reply.code(400).send({ success: false, error: "没有可导入的数据" });
+      }
+      if (rows.length > 5000) {
+        return reply
+          .code(400)
+          .send({ success: false, error: "单次最多导入 5000 行，请拆分文件" });
+      }
+
+      const client = getClient(connectionId);
+      let imported = 0;
+
+      // Embed in batches, then insert
+      const prepared: Record<string, unknown>[] = [];
+      const size = Math.max(1, Math.min(batchSize, 128));
+      for (let i = 0; i < rows.length; i += size) {
+        const chunk = rows.slice(i, i + size);
+        if (embed?.textField && embed?.vectorField && embed?.config) {
+          const texts = chunk.map((r) => String(r[embed.textField] ?? ""));
+          const vectors = await embedTexts(texts, embed.config);
+          chunk.forEach((row, j) => {
+            prepared.push({
+              ...row,
+              [embed.vectorField]: vectors[j],
+            });
+          });
+        } else {
+          prepared.push(...chunk);
+        }
+      }
+
+      // Insert in batches to avoid huge payloads
+      const INSERT_BATCH = 100;
+      for (let i = 0; i < prepared.length; i += INSERT_BATCH) {
+        const batch = prepared.slice(i, i + INSERT_BATCH);
+        const insertParams: Record<string, unknown> = {
+          collection_name: name,
+          data: batch,
+        };
+        if (db) insertParams.db_name = db;
+        await client.insert(insertParams as unknown as Parameters<typeof client.insert>[0]);
+        imported += batch.length;
+      }
+
+      return {
+        success: true,
+        data: {
+          imported,
+          embedded: Boolean(embed?.textField && embed?.vectorField),
+        },
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Import failed";
       return reply.code(500).send({ success: false, error: message });
     }
   });

@@ -6,6 +6,7 @@ import { translateError } from "@/lib/errors";
 import { toast } from "@/hooks/use-toast";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { ColumnVisibility } from "@/components/ColumnVisibility";
+import { ImportDialog } from "@/components/ImportDialog";
 import { JsonViewer } from "@/components/JsonViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,7 @@ export function DataExplorerPage() {
 
   // Insert dialog state
   const [insertOpen, setInsertOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [insertData, setInsertData] = useState<Record<string, string>>({});
   const [inserting, setInserting] = useState(false);
 
@@ -973,6 +975,25 @@ export function DataExplorerPage() {
               columns={allColumns}
               visibleColumns={visibleColumns.length > 0 ? visibleColumns : allColumns}
               onVisibilityChange={setVisibleColumns}
+            />
+
+            {/* Batch import */}
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              导入
+            </Button>
+            <ImportDialog
+              open={importOpen}
+              onOpenChange={setImportOpen}
+              connectionId={activeConnectionId}
+              collectionName={selectedCollection}
+              database={selectedDatabase}
+              schemaFields={
+                schema?.schema?.fields ||
+                []
+              }
+              embeddingConfig={embeddingConfig}
+              onImported={() => void loadData()}
             />
 
             {/* Insert button */}

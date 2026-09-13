@@ -137,6 +137,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ data }),
     }),
+  importData: (
+    connectionId: string,
+    name: string,
+    body: {
+      rows: Record<string, unknown>[];
+      embed?: {
+        textField: string;
+        vectorField: string;
+        config: unknown;
+      };
+      batchSize?: number;
+    },
+    db?: string
+  ) =>
+    request(`/collections/${name}/import${qs({ connectionId, db })}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   deleteData: (connectionId: string, name: string, filter: string, db?: string) =>
     request(
       `/collections/${name}/delete${qs({ connectionId, filter, db })}`,

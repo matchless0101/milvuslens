@@ -68,7 +68,7 @@ function parseCsvLine(line: string): string[] {
 
 function parseCsv(text: string): ParsedRow[] {
   const lines = text
-    .replace(/^﻿/, "")
+    .replace(/^\uFEFF/, "")
     .split(/\r?\n/)
     .filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
@@ -153,11 +153,11 @@ export function ImportDialog({
   const handleFile = async (file: File) => {
     const text = await file.text();
     const lower = file.name.toLowerCase();
-    let parsed: ParsedRow[] = [];
+    let parsed: ParsedRow[];
     if (lower.endsWith(".jsonl") || lower.endsWith(".ndjson")) {
       parsed = parseJsonl(text);
     } else if (lower.endsWith(".json")) {
-      parsed = parseJsonArray(text) ;
+      parsed = parseJsonArray(text);
       if (parsed.length === 0) parsed = parseJsonl(text);
     } else {
       parsed = parseCsv(text);

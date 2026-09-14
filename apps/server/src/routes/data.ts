@@ -133,27 +133,36 @@ export async function dataRoutes(app: FastifyInstance) {
 
       const client = getClient(connectionId);
       let imported = 0;
+      let failedBatches = 0;
+      let lastError = "";
 
       // Embed in batches, then insert
       const prepared: Record<string, unknown>[] = [];
       const size = Math.max(1, Math.min(batchSize, 128));
-      for (let i = 0; i < rows.length; i += size) {
-        const chunk = rows.slice(i, i + size);
-        if (embed?.textField && embed?.vectorField && embed?.config) {
-          const texts = chunk.map((r) => String(r[embed.textField] ?? ""));
-          const vectors = await embedTexts(texts, embed.config);
-          chunk.forEach((row, j) => {
-            prepared.push({
-              ...row,
-              [embed.vectorField]: vectors[j],
+      try {
+        for (let i = 0; i < rows.length; i += size) {
+          const chunk = rows.slice(i, i + size);
+          if (embed?.textField && embed?.vectorField && embed?.config) {
+            const texts = chunk.map((r) => String(r[embed.textField] ?? ""));
+            const vectors = await embedTexts(texts, embed.config);
+            chunk.forEach((row, j) => {
+              prepared.push({
+                ...row,
+                [embed.vectorField]: vectors[j],
+              });
             });
-          });
-        } else {
-          prepared.push(...chunk);
+          } else {
+            prepared.push(...chunk);
+          }
         }
+      } catch (e) {
+        return reply.code(500).send({
+          success: false,
+          error: `向量化失败（已中止，未写入）：${e instanceof Error ? e.message : String(e)}`,
+        });
       }
 
-      // Insert in batches to avoid huge payloads
+      // Insert in batches; report partial success explicitly
       const INSERT_BATCH = 100;
       for (let i = 0; i < prepared.length; i += INSERT_BATCH) {
         const batch = prepared.slice(i, i + INSERT_BATCH);
@@ -162,15 +171,43 @@ export async function dataRoutes(app: FastifyInstance) {
           data: batch,
         };
         if (db) insertParams.db_name = db;
-        await client.insert(insertParams as unknown as Parameters<typeof client.insert>[0]);
-        imported += batch.length;
+        try {
+          await client.insert(insertParams as unknown as Parameters<typeof client.insert>[0]);
+          imported += batch.length;
+        } catch (e) {
+          failedBatches += 1;
+          lastError = e instanceof Error ? e.message : String(e);
+          // stop on first insert failure to avoid hammering a broken collection
+          break;
+        }
+      }
+
+      if (imported > 0 && failedBatches > 0) {
+        return {
+          success: true,
+          data: {
+            imported,
+            totalRows: prepared.length,
+            embedded: Boolean(embed?.textField && embed?.vectorField),
+            partial: true,
+            error: lastError,
+          },
+        };
+      }
+      if (imported === 0 && failedBatches > 0) {
+        return reply.code(500).send({
+          success: false,
+          error: `导入失败：${lastError}`,
+        });
       }
 
       return {
         success: true,
         data: {
           imported,
+          totalRows: prepared.length,
           embedded: Boolean(embed?.textField && embed?.vectorField),
+          partial: false,
         },
       };
     } catch (err: unknown) {

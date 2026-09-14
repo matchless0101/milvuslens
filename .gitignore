@@ -6,3 +6,6 @@ dist/
 
 server.log
 web.log
+server-test.log
+server-test.err.log
+*.log

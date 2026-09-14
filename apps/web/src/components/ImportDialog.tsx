@@ -225,16 +225,30 @@ export function ImportDialog({
     setImporting(false);
 
     if (res.success) {
-      const data = res.data as { imported?: number; embedded?: boolean };
-      toast({
-        title: "导入成功",
-        description: `已写入 ${data?.imported ?? payloadRows.length} 行${
-          data?.embedded ? "（含自动向量化）" : ""
-        }`,
-      });
-      setRows([]);
-      setFileName("");
-      onOpenChange(false);
+      const data = res.data as {
+        imported?: number;
+        totalRows?: number;
+        embedded?: boolean;
+        partial?: boolean;
+        error?: string;
+      };
+      if (data?.partial) {
+        toast({
+          variant: "destructive",
+          title: "部分导入成功",
+          description: `已写入 ${data.imported}/${data.totalRows} 行。原因：${data.error || "未知"}`,
+        });
+      } else {
+        toast({
+          title: "导入成功",
+          description: `已写入 ${data?.imported ?? payloadRows.length} 行${
+            data?.embedded ? "（含自动向量化）" : ""
+          }`,
+        });
+        setRows([]);
+        setFileName("");
+        onOpenChange(false);
+      }
       onImported();
     } else {
       toast({

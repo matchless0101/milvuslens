@@ -126,11 +126,10 @@ export function ExplorerPage() {
     }
   };
 
-  // Select a database
+  // Select a database — db_name is passed per-request; no client.use()
   const handleSelectDb = async (name: string) => {
     if (!activeConnectionId) return;
     setSelectedDatabase(name);
-    await api.useDatabase(activeConnectionId, name);
     loadCollections();
   };
 

@@ -73,11 +73,6 @@ export const api = {
     request(`/databases/${name}?connectionId=${connectionId}`, {
       method: "DELETE",
     }),
-  useDatabase: (connectionId: string, dbName: string) =>
-    request("/databases/use", {
-      method: "POST",
-      body: JSON.stringify({ connectionId, dbName }),
-    }),
 
   // Collections
   listCollections: (connectionId: string, db?: string, withDetails = false) =>

@@ -1,23 +1,19 @@
-import { useEffect, useState, useRef, type MouseEvent as ReactMouseEvent } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useEffect, useState } from "react";
 import { useAppStore } from "@/stores/app";
 import { api } from "@/lib/api";
 import { translateError } from "@/lib/errors";
 import { toast } from "@/hooks/use-toast";
+import { useSemanticSearch } from "@/hooks/useSemanticSearch";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { ColumnVisibility } from "@/components/ColumnVisibility";
 import { ImportDialog } from "@/components/ImportDialog";
 import { EvaluateDialog } from "@/components/EvaluateDialog";
-import { JsonViewer } from "@/components/JsonViewer";
+import { SearchPanel } from "@/components/SearchPanel";
+import { DataGrid } from "@/components/DataGrid";
+import { RowDetailPanel } from "@/components/RowDetailPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import type {
-  DescribeCollectionResult,
-  EmbedResponse,
-  MilvusFieldSchema,
-} from "@milvuslens/shared";
 import {
   Dialog,
   DialogContent,
@@ -32,18 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  RefreshCw,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  X,
-  Plus,
-  Trash2,
-  Download,
-  History,
-} from "lucide-react";
+import { RefreshCw, Search, Plus, Trash2 } from "lucide-react";
+import type {
+  DescribeCollectionResult,
+  MilvusFieldSchema,
+} from "@milvuslens/shared";
 
 export function DataExplorerPage() {
   const {
@@ -55,95 +44,50 @@ export function DataExplorerPage() {
     setCurrentPage,
     embeddingConfig,
     searchHistory,
-    addSearchHistory,
     clearSearchHistory,
   } = useAppStore();
 
-  // Database / collection switcher
   const [databases, setDatabases] = useState<string[]>([]);
   const [collections, setCollections] = useState<string[]>([]);
   const [switcherLoading, setSwitcherLoading] = useState(false);
 
-  // Data state
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize] = useState(50);
   const [total, setTotal] = useState<number | null>(null);
   const [filter, setFilter] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [schema, setSchema] = useState<DescribeCollectionResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Insert dialog state
   const [insertOpen, setInsertOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [evalOpen, setEvalOpen] = useState(false);
   const [insertData, setInsertData] = useState<Record<string, string>>({});
   const [inserting, setInserting] = useState(false);
 
-  // Delete dialog state
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteFilter, setDeleteFilter] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  // Selected row for detail panel
-  const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(
-    null
-  );
-
-  // Resizable detail panel
-  const [detailWidth, setDetailWidth] = useState(384); // default w-96 = 24rem = 384px
-  const isDragging = useRef(false);
-
-  const startDrag = (e: React.MouseEvent) => {
-    e.preventDefault();
-    isDragging.current = true;
-    const startX = e.clientX;
-    const startWidth = detailWidth;
-
-    const onMove = (ev: MouseEvent) => {
-      if (!isDragging.current) return;
-      const delta = startX - ev.clientX; // drag left = wider
-      const newWidth = Math.min(Math.max(startWidth + delta, 240), 800);
-      setDetailWidth(newWidth);
-    };
-    const onUp = () => {
-      isDragging.current = false;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  };
-
-  // Semantic search state
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
   const [searchField, setSearchField] = useState("");
   const [topK, setTopK] = useState(10);
   const [metricType, setMetricType] = useState<string>("IP");
-  const [searching, setSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<
-    Array<{ id: string | number; score: number; data: Record<string, unknown> }>
-  >([]);
-  const [batchResults, setBatchResults] = useState<
-    Array<{
-      query: string;
-      results: Array<{ id: string | number; score: number; data: Record<string, unknown> }>;
-      error?: string;
-    }>
-  >([]);
   const [showSearchPanel, setShowSearchPanel] = useState(true);
-  const [showHistory, setShowHistory] = useState(false);
 
-  const tableRef = useRef<HTMLDivElement>(null);
+  const search = useSemanticSearch({
+    connectionId: activeConnectionId,
+    collection: selectedCollection,
+    database: selectedDatabase,
+    vectorField: searchField,
+    metricType,
+    topK,
+    onNeedEmbeddingConfig: () => setCurrentPage("settings"),
+  });
 
-  // Load databases + collections for the in-page switcher
   const loadDatabases = async () => {
     if (!activeConnectionId) return;
     setSwitcherLoading(true);
@@ -152,9 +96,7 @@ export function DataExplorerPage() {
     if (res.success) {
       const dbs = (res.data as string[]) || [];
       setDatabases(dbs);
-      if (!selectedDatabase && dbs.length > 0) {
-        setSelectedDatabase(dbs[0]);
-      }
+      if (!selectedDatabase && dbs.length > 0) setSelectedDatabase(dbs[0]);
     } else {
       toast({
         variant: "destructive",
@@ -173,14 +115,9 @@ export function DataExplorerPage() {
     const res = await api.listCollections(activeConnectionId, db, false);
     setSwitcherLoading(false);
     if (res.success) {
-      const names =
-        (
-          res.data as Array<{ name: string }>
-        )?.map((c) => c.name) || [];
+      const names = (res.data as Array<{ name: string }>)?.map((c) => c.name) || [];
       setCollections(names);
-      if (!selectedCollection && names.length > 0) {
-        setSelectedCollection(names[0]);
-      }
+      if (!selectedCollection && names.length > 0) setSelectedCollection(names[0]);
     } else {
       toast({
         variant: "destructive",
@@ -194,9 +131,8 @@ export function DataExplorerPage() {
     setPage(0);
     setFilter("");
     setSelectedRow(null);
-    setSearchResults([]);
-    setBatchResults([]);
-    setSearchQuery("");
+    search.clearResults();
+    search.setSearchQuery("");
     setSearchField("");
     setVisibleColumns([]);
     setRows([]);
@@ -219,7 +155,6 @@ export function DataExplorerPage() {
     resetTableView();
   };
 
-  // Load schema to get field list
   const loadSchema = async () => {
     if (!activeConnectionId || !selectedCollection) return;
     const res = await api.getCollectionSchema(
@@ -229,21 +164,17 @@ export function DataExplorerPage() {
     );
     if (res.success) {
       setSchema(res.data as DescribeCollectionResult);
-      // Auto-select first vector field for search
       const fields = (res.data as DescribeCollectionResult)?.schema?.fields || [];
       const vectorField = fields.find(
         (f) => f.data_type === "FloatVector" || f.data_type === 101
       );
-      if (vectorField && !searchField) {
-        setSearchField(vectorField.name);
-      }
-      // Prefer the metric type declared by the collection index
+      if (vectorField && !searchField) setSearchField(vectorField.name);
       const indexes = (res.data as DescribeCollectionResult)?.index_descriptions || [];
-      const matched = indexes.find((idx) => !vectorField || idx.field_name === vectorField.name) || indexes[0];
+      const matched =
+        indexes.find((idx) => !vectorField || idx.field_name === vectorField.name) ||
+        indexes[0];
       const metric = matched?.params?.metric_type;
-      if (typeof metric === "string") {
-        setMetricType(metric);
-      }
+      if (typeof metric === "string") setMetricType(metric);
     } else {
       setLoadError(translateError(res.error));
       toast({
@@ -254,14 +185,19 @@ export function DataExplorerPage() {
     }
   };
 
-  // Load data
   const loadData = async () => {
     if (!activeConnectionId || !selectedCollection) return;
     setLoading(true);
-
-    // Exclude vector fields from list queries — they are huge and only needed in detail
-    const listFields = (schema?.schema?.fields as Array<{ name: string; data_type: string | number }> | undefined)
-      ?.filter((f) => f.data_type !== "FloatVector" && f.data_type !== 101 && f.data_type !== "BinaryVector" && f.data_type !== 100)
+    const listFields = (
+      schema?.schema?.fields as Array<{ name: string; data_type: string | number }> | undefined
+    )
+      ?.filter(
+        (f) =>
+          f.data_type !== "FloatVector" &&
+          f.data_type !== 101 &&
+          f.data_type !== "BinaryVector" &&
+          f.data_type !== 100
+      )
       .map((f) => f.name);
 
     const res = await api.queryData(
@@ -282,7 +218,6 @@ export function DataExplorerPage() {
       const newRows = data?.data || [];
       setRows(newRows);
       setTotal(typeof data?.total === "number" ? data.total : null);
-      // Initialize visible columns on first load
       if (visibleColumns.length === 0 && newRows.length > 0) {
         setVisibleColumns(Object.keys(newRows[0]));
       }
@@ -308,12 +243,10 @@ export function DataExplorerPage() {
     void loadSchema();
   }, [activeConnectionId, selectedCollection, selectedDatabase]);
 
-  // Re-load after schema arrives so we can exclude vector fields
   useEffect(() => {
     if (schema) void loadData();
   }, [schema, activeConnectionId, selectedCollection, selectedDatabase, page, pageSize]);
 
-  // Get schema fields for insert form
   const schemaFields: Array<{ name: string; type: string; isVector: boolean }> =
     schema?.schema?.fields?.map((f: MilvusFieldSchema) => ({
       name: f.name,
@@ -321,26 +254,21 @@ export function DataExplorerPage() {
       isVector: f.data_type === "FloatVector" || f.data_type === 101,
     })) || [];
 
-  // Insert data handler
   const handleInsert = async () => {
     if (!activeConnectionId || !selectedCollection) return;
     setInserting(true);
-
-    // Parse values based on field type
     const row: Record<string, unknown> = {};
     for (const field of schemaFields) {
       const raw = insertData[field.name];
       if (raw === undefined || raw === "") continue;
-
       if (field.isVector) {
-        // Parse vector as JSON array
         try {
           row[field.name] = JSON.parse(raw);
         } catch {
           toast({
             variant: "destructive",
             title: "格式错误",
-            description: `字段 ${field.name} 的向量格式不正确，请输入 JSON 数组，如 [0.1, 0.2, ...]`,
+            description: `字段 ${field.name} 的向量格式不正确，请输入 JSON 数组`,
           });
           setInserting(false);
           return;
@@ -375,11 +303,10 @@ export function DataExplorerPage() {
       selectedDatabase || undefined
     );
     setInserting(false);
-
     if (res.success) {
       setInsertOpen(false);
       setInsertData({});
-      loadData();
+      void loadData();
     } else {
       toast({
         variant: "destructive",
@@ -389,10 +316,8 @@ export function DataExplorerPage() {
     }
   };
 
-  // Delete data handler — caller must have already confirmed via typed phrase
   const handleDelete = async () => {
     if (!activeConnectionId || !selectedCollection || !deleteFilter.trim()) return;
-
     setDeleting(true);
     const res = await api.deleteData(
       activeConnectionId,
@@ -401,12 +326,11 @@ export function DataExplorerPage() {
       selectedDatabase || undefined
     );
     setDeleting(false);
-
     if (res.success) {
       setDeleteOpen(false);
       setDeleteFilter("");
       setDeleteConfirmText("");
-      loadData();
+      void loadData();
     } else {
       toast({
         variant: "destructive",
@@ -416,239 +340,13 @@ export function DataExplorerPage() {
     }
   };
 
-  // Semantic search
-  type SearchHit = { id: string | number; score: number; data: Record<string, unknown> };
-  type OneSearchResult = { results: SearchHit[]; error?: string };
-
-  const runOneSearch = async (question: string): Promise<OneSearchResult> => {
-    if (!activeConnectionId || !selectedCollection) {
-      return { results: [], error: "未选择连接或集合" };
-    }
-
-    const embedRes = await api.embed(question, embeddingConfig);
-    if (!embedRes.success) {
-      return { results: [], error: translateError(embedRes.error) };
-    }
-    const embedding = (embedRes.data as EmbedResponse).embedding;
-    const searchRes = await api.searchData(
-      activeConnectionId,
-      selectedCollection,
-      {
-        vector: embedding,
-        vectorField: searchField,
-        topK,
-        metricType,
-      },
-      selectedDatabase || undefined
-    );
-    if (!searchRes.success) {
-      return { results: [], error: translateError(searchRes.error) };
-    }
-    return {
-      results: (searchRes.data as SearchHit[]) || [],
-    };
-  };
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim() || !activeConnectionId || !selectedCollection)
-      return;
-    if (!embeddingConfig.baseUrl || !embeddingConfig.model) {
-      toast({
-        title: "未配置 Embedding",
-        description: "请先在设置中填写 API Base URL 与模型名称",
-      });
-      setCurrentPage("settings");
-      return;
-    }
-
-    const questions = searchQuery
-      .split(/\r?\n/)
-      .map((q) => q.trim())
-      .filter(Boolean);
-
-    if (questions.length === 0) return;
-
-    setSearching(true);
-    setSearchResults([]);
-    setBatchResults([]);
-
-    try {
-      if (questions.length === 1) {
-        const { results, error } = await runOneSearch(questions[0]);
-        if (error) {
-          toast({
-            variant: "destructive",
-            title: "搜索失败",
-            description: error,
-          });
-        } else {
-          setSearchResults(results);
-          addSearchHistory(questions[0]);
-        }
-      } else {
-        const batch: typeof batchResults = [];
-        for (const q of questions) {
-          const { results, error } = await runOneSearch(q);
-          batch.push({ query: q, results, error });
-          addSearchHistory(q);
-        }
-        setBatchResults(batch);
-        const failed = batch.filter((b) => b.error).length;
-        toast({
-          title: "批量搜索完成",
-          description: `共 ${batch.length} 个问题${failed ? `，${failed} 个失败` : ""}`,
-        });
-      }
-    } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "搜索出错",
-        description: translateError((err as Error).message),
-      });
-    }
-    setSearching(false);
-  };
-
-  const pickPreviewText = (data: Record<string, unknown>): string => {
-    const skip = new Set(["embedding", "vector", "$meta"]);
-    for (const [k, v] of Object.entries(data)) {
-      if (skip.has(k) || k.toLowerCase().includes("vector")) continue;
-      if (typeof v === "string" && v.trim()) return v;
-    }
-    return "";
-  };
-
-  const exportCsv = () => {
-    const rowsOut: string[][] = [["question", "rank", "score", "id", "text"]];
-    if (batchResults.length > 0) {
-      for (const item of batchResults) {
-        if (item.error) {
-          rowsOut.push([item.query, "", "", "", `ERROR: ${item.error}`]);
-          continue;
-        }
-        item.results.forEach((r, i) => {
-          rowsOut.push([
-            item.query,
-            String(i + 1),
-            String(r.score),
-            String(r.id),
-            pickPreviewText(r.data),
-          ]);
-        });
-      }
-    } else {
-      searchResults.forEach((r, i) => {
-        rowsOut.push([
-          searchQuery.trim(),
-          String(i + 1),
-          String(r.score),
-          String(r.id),
-          pickPreviewText(r.data),
-        ]);
-      });
-    }
-    if (rowsOut.length <= 1) {
-      toast({ title: "没有可导出的结果" });
-      return;
-    }
-    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
-    const csv = "﻿" + rowsOut.map((r) => r.map(esc).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `milvuslens-search-${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "已导出 CSV" });
-  };
-
-  // COSINE/IP: higher is more similar. L2: lower is closer (distance).
-  const isDistanceMetric = metricType.toUpperCase() === "L2";
-  const formatScore = (score: number): string => score.toFixed(4);
-
-  // All available columns
-  const allColumns: string[] =
-    rows.length > 0
-      ? Object.keys(rows[0])
-      : (schema?.schema?.fields?.map((f: { name: string }) => f.name) as string[]) || [];
-
-  // Columns to display (filtered by visibility)
-  const columns: string[] =
-    visibleColumns.length > 0
-      ? allColumns.filter((c) => visibleColumns.includes(c))
-      : allColumns;
-
-  // Virtualized row list — only mount rows near the viewport
-  const ROW_HEIGHT = 36;
-  const DEFAULT_COL_WIDTH = 140;
-  const MIN_COL_WIDTH = 72;
-  const MAX_COL_WIDTH = 720;
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => tableRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 12,
-  });
-
-  // Explicit px widths so header/body stay aligned while dragging
-  const gridTemplate = columns
-    .map((col) => `${columnWidths[col] ?? DEFAULT_COL_WIDTH}px`)
-    .join(" ");
-
-  const startColumnResize = (col: string, e: ReactMouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const startWidth = columnWidths[col] ?? DEFAULT_COL_WIDTH;
-
-    const onMove = (ev: MouseEvent) => {
-      const next = Math.min(
-        Math.max(startWidth + (ev.clientX - startX), MIN_COL_WIDTH),
-        MAX_COL_WIDTH
-      );
-      setColumnWidths((prev) => ({ ...prev, [col]: next }));
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  };
-
-  const resetColumnWidths = () => setColumnWidths({});
-
-  // Format cell value
-  const formatValue = (val: unknown): string => {
-    if (val === null || val === undefined) return "—";
-    if (Array.isArray(val)) {
-      if (val.length > 8) {
-        return `[${val.slice(0, 8).map((v) => (typeof v === "number" ? v.toFixed(4) : v)).join(", ")}...]`;
-      }
-      return `[${val.map((v) => (typeof v === "number" ? v.toFixed(4) : v)).join(", ")}]`;
-    }
-    if (typeof val === "object") return JSON.stringify(val).slice(0, 50);
-    return String(val);
-  };
-
   if (!activeConnectionId || !selectedCollection) {
     return (
       <div className="p-6 flex flex-col items-center justify-center h-full text-center">
         <Search className="h-12 w-12 text-muted-foreground mb-4" />
         <h2 className="text-xl font-semibold mb-2">未选择集合</h2>
-        <p className="text-muted-foreground mb-4">
-          请先连接并选择一个集合
-        </p>
-        <Button onClick={() => setCurrentPage("explorer")}>
-          前往集合列表
-        </Button>
+        <p className="text-muted-foreground mb-4">请先连接并选择一个集合</p>
+        <Button onClick={() => setCurrentPage("explorer")}>前往集合列表</Button>
       </div>
     );
   }
@@ -658,18 +356,23 @@ export function DataExplorerPage() {
       (f) => f.data_type === "FloatVector" || f.data_type === 101
     ) || [];
 
-  // Scalar fields for filter builder (exclude vector fields)
   const scalarFields: Array<{ name: string; type: string }> =
     schema?.schema?.fields
       ?.filter((f) => f.data_type !== "FloatVector" && f.data_type !== 101)
-      ?.map((f) => ({
-        name: f.name,
-        type: String(f.data_type),
-      })) || [];
+      ?.map((f) => ({ name: f.name, type: String(f.data_type) })) || [];
+
+  const allColumns: string[] =
+    rows.length > 0
+      ? Object.keys(rows[0])
+      : (schema?.schema?.fields?.map((f: { name: string }) => f.name) as string[]) || [];
+
+  const columns: string[] =
+    visibleColumns.length > 0
+      ? allColumns.filter((c) => visibleColumns.includes(c))
+      : allColumns;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Toolbar */}
       <div className="border-b p-4 flex items-end gap-3 flex-wrap">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">数据库</Label>
@@ -678,19 +381,10 @@ export function DataExplorerPage() {
             onValueChange={(v) => void handleDatabaseChange(v)}
             disabled={switcherLoading || databases.length === 0}
           >
-            <SelectTrigger className="w-40 h-9" title="切换数据库">
-              <SelectValue
-                placeholder={
-                  switcherLoading ? "加载中..." : "选择数据库"
-                }
-              />
+            <SelectTrigger className="w-40 h-9">
+              <SelectValue placeholder={switcherLoading ? "加载中..." : "选择数据库"} />
             </SelectTrigger>
             <SelectContent>
-              {databases.length === 0 && (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  暂无数据库
-                </div>
-              )}
               {databases.map((db) => (
                 <SelectItem key={db} value={db}>
                   {db}
@@ -707,7 +401,7 @@ export function DataExplorerPage() {
             onValueChange={handleCollectionChange}
             disabled={switcherLoading || !selectedDatabase || collections.length === 0}
           >
-            <SelectTrigger className="w-52 h-9" title="切换集合">
+            <SelectTrigger className="w-52 h-9">
               <SelectValue
                 placeholder={
                   switcherLoading
@@ -719,11 +413,6 @@ export function DataExplorerPage() {
               />
             </SelectTrigger>
             <SelectContent>
-              {collections.length === 0 && (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  暂无集合
-                </div>
-              )}
               {collections.map((name) => (
                 <SelectItem key={name} value={name}>
                   {name}
@@ -733,13 +422,10 @@ export function DataExplorerPage() {
           </Select>
         </div>
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={resetColumnWidths} title="将所有列恢复为默认宽度">
-          重置列宽
-        </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={loadData}
+          onClick={() => void loadData()}
           disabled={!selectedCollection}
           title="重新加载当前集合的数据"
         >
@@ -756,239 +442,38 @@ export function DataExplorerPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Main content: table + search */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Semantic search panel - toggleable */}
           {showSearchPanel && (
-            <div className="border-b p-4 bg-muted/30">
-              <div className="flex items-start gap-3 flex-wrap">
-                <div className="flex-1 min-w-[240px] space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs">输入问题（多行可批量搜索）</Label>
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => setShowHistory(!showHistory)}
-                      >
-                        <History className="h-3 w-3 mr-1" />
-                        历史
-                      </Button>
-                      {searchHistory.length > 0 && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 px-2 text-xs"
-                          onClick={clearSearchHistory}
-                        >
-                          清空历史
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  <Textarea
-                    placeholder={"例如：疲劳试验的参数是什么？\n也可每行一个问题，一次批量搜索"}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="min-h-[72px]"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        void handleSearch();
-                      }
-                    }}
-                  />
-                  {showHistory && searchHistory.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {searchHistory.map((h) => (
-                        <button
-                          key={h}
-                          type="button"
-                          className="text-xs px-2 py-0.5 rounded border bg-background hover:bg-accent max-w-[220px] truncate"
-                          title={h}
-                          onClick={() => setSearchQuery(h)}
-                        >
-                          {h}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {vectorFields.length > 0 && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">向量字段</Label>
-                    <Select value={searchField} onValueChange={setSearchField}>
-                      <SelectTrigger className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vectorFields.map((f) => (
-                          <SelectItem key={f.name} value={f.name}>
-                            {f.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <Label className="text-xs">Metric</Label>
-                  <Select value={metricType} onValueChange={setMetricType}>
-                    <SelectTrigger className="w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="COSINE">COSINE</SelectItem>
-                      <SelectItem value="IP">IP</SelectItem>
-                      <SelectItem value="L2">L2</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">TopK</Label>
-                  <Input
-                    type="number"
-                    value={topK}
-                    onChange={(e) => setTopK(Number(e.target.value))}
-                    className="w-20"
-                    min={1}
-                    max={100}
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Button onClick={() => void handleSearch()} disabled={searching}>
-                    {searching ? "搜索中..." : "搜索"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={exportCsv}
-                    disabled={searchResults.length === 0 && batchResults.length === 0}
-                    title="将当前搜索结果导出为 CSV"
-                  >
-                    <Download className="h-3.5 w-3.5 mr-1" />
-                    导出CSV
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEvalOpen(true)}
-                    title="批量问题召回评测"
-                  >
-                    评测
-                  </Button>
-                  <EvaluateDialog
-                    open={evalOpen}
-                    onOpenChange={setEvalOpen}
-                    connectionId={activeConnectionId}
-                    collectionName={selectedCollection}
-                    database={selectedDatabase}
-                    vectorField={searchField}
-                    metricType={metricType}
-                    embeddingConfig={embeddingConfig}
-                  />
-                </div>
-              </div>
-
-              {/* Single-question results */}
-              {batchResults.length === 0 && searchResults.length > 0 && (
-                <div className="mt-3 space-y-2 max-h-48 overflow-auto">
-                  <p className="text-xs text-muted-foreground">
-                    找到 {searchResults.length} 条结果 · metric: {metricType}
-                    {isDistanceMetric ? " · 距离越小越相似" : " · 分数越大越相似"}
-                  </p>
-                  {searchResults.map((r, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-3 p-2 border rounded bg-background cursor-pointer hover:bg-accent/50"
-                      onClick={() => setSelectedRow(r.data)}
-                    >
-                      <span className="text-xs font-mono text-muted-foreground w-6">
-                        #{i + 1}
-                      </span>
-                      <span
-                        className="text-sm font-semibold text-primary w-20"
-                        title={isDistanceMetric ? "距离（越小越相似）" : "相似度（越大越相似）"}
-                      >
-                        {formatScore(r.score)}
-                      </span>
-                      <span className="text-xs text-muted-foreground w-16">
-                        ID: {String(r.id).slice(0, 10)}
-                      </span>
-                      <span className="text-sm truncate flex-1">
-                        {formatValue(
-                          Object.entries(r.data).find(
-                            ([k]) =>
-                              !k.includes("vector") && k !== "id"
-                          )?.[1]
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Batch results */}
-              {batchResults.length > 0 && (
-                <div className="mt-3 space-y-3 max-h-64 overflow-auto">
-                  <p className="text-xs text-muted-foreground">
-                    批量结果 · {batchResults.length} 个问题 · 可导出 CSV
-                  </p>
-                  {batchResults.map((item, qi) => (
-                    <div key={qi} className="border rounded bg-background p-2">
-                      <p className="text-sm font-medium mb-1">
-                        Q{qi + 1}. {item.query}
-                      </p>
-                      {item.error ? (
-                        <p className="text-xs text-destructive">{item.error}</p>
-                      ) : item.results.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">无结果</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {item.results.slice(0, 3).map((r, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/40 rounded px-1"
-                              onClick={() => setSelectedRow(r.data)}
-                            >
-                              <span className="text-muted-foreground w-5">#{i + 1}</span>
-                              <span className="text-primary font-semibold w-16">
-                                {formatScore(r.score)}
-                              </span>
-                              <span className="truncate flex-1">
-                                {pickPreviewText(r.data) ||
-                                  formatValue(
-                                    Object.entries(r.data).find(
-                                      ([k]) => !k.includes("vector") && k !== "id"
-                                    )?.[1]
-                                  )}
-                              </span>
-                            </div>
-                          ))}
-                          {item.results.length > 3 && (
-                            <p className="text-[11px] text-muted-foreground">
-                              另有 {item.results.length - 3} 条，完整结果见导出 CSV
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <SearchPanel
+              searchQuery={search.searchQuery}
+              onSearchQueryChange={search.setSearchQuery}
+              searching={search.searching}
+              searchResults={search.searchResults}
+              batchResults={search.batchResults}
+              searchHistory={searchHistory}
+              onClearHistory={clearSearchHistory}
+              onSearch={() => void search.handleSearch()}
+              onExportCsv={search.exportCsv}
+              onSelectRow={setSelectedRow}
+              vectorFields={vectorFields.map((f) => ({ name: f.name }))}
+              searchField={searchField}
+              onSearchFieldChange={setSearchField}
+              metricType={metricType}
+              onMetricTypeChange={setMetricType}
+              topK={topK}
+              onTopKChange={setTopK}
+              onOpenEvaluate={() => setEvalOpen(true)}
+            />
           )}
 
-          {/* Filter row - always visible, independent of search panel */}
-          <div className="border-b px-4 py-2 flex items-center gap-3 bg-background">
+          <div className="border-b px-4 py-2 flex items-center gap-3 bg-background flex-wrap">
             <FilterBuilder
               fields={scalarFields}
               filter={filter}
               onFilterChange={setFilter}
               onApply={() => {
                 setPage(0);
-                loadData();
+                void loadData();
               }}
             />
             <ColumnVisibility
@@ -996,8 +481,6 @@ export function DataExplorerPage() {
               visibleColumns={visibleColumns.length > 0 ? visibleColumns : allColumns}
               onVisibilityChange={setVisibleColumns}
             />
-
-            {/* Batch import */}
             <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
               导入
@@ -1008,15 +491,11 @@ export function DataExplorerPage() {
               connectionId={activeConnectionId}
               collectionName={selectedCollection}
               database={selectedDatabase}
-              schemaFields={
-                schema?.schema?.fields ||
-                []
-              }
+              schemaFields={schema?.schema?.fields || []}
               embeddingConfig={embeddingConfig}
               onImported={() => void loadData()}
             />
 
-            {/* Insert button */}
             <Dialog open={insertOpen} onOpenChange={setInsertOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline">
@@ -1034,18 +513,9 @@ export function DataExplorerPage() {
                       <Label className="text-xs">
                         {field.name}
                         <span className="text-muted-foreground ml-1">({field.type})</span>
-                        {field.isVector && (
-                          <span className="text-muted-foreground ml-1">— JSON 数组</span>
-                        )}
                       </Label>
                       <Input
-                        placeholder={
-                          field.isVector
-                            ? "[0.1, 0.2, 0.3, ...]"
-                            : field.type.includes("JSON")
-                              ? '{"key": "value"}'
-                              : `输入 ${field.name}`
-                        }
+                        placeholder={field.isVector ? "[0.1, 0.2, ...]" : field.name}
                         value={insertData[field.name] || ""}
                         onChange={(e) =>
                           setInsertData({ ...insertData, [field.name]: e.target.value })
@@ -1053,18 +523,13 @@ export function DataExplorerPage() {
                       />
                     </div>
                   ))}
-                  <Button
-                    onClick={handleInsert}
-                    disabled={inserting}
-                    className="w-full"
-                  >
+                  <Button onClick={() => void handleInsert()} disabled={inserting} className="w-full">
                     {inserting ? "插入中..." : "插入数据"}
                   </Button>
                 </div>
               </DialogContent>
             </Dialog>
 
-            {/* Delete button */}
             <Dialog
               open={deleteOpen}
               onOpenChange={(open) => {
@@ -1089,32 +554,21 @@ export function DataExplorerPage() {
                   <p className="text-sm text-muted-foreground">
                     输入筛选表达式，删除所有匹配的数据。此操作不可恢复。
                   </p>
-                  <div className="space-y-1">
-                    <Label className="text-xs">筛选表达式</Label>
-                    <Input
-                      placeholder="如: id == 123 或 count > 100"
-                      value={deleteFilter}
-                      onChange={(e) => setDeleteFilter(e.target.value)}
-                    />
-                  </div>
-                  {deleteFilter && (
-                    <div className="text-xs text-muted-foreground bg-muted p-2 rounded font-mono">
-                      将删除匹配: {deleteFilter} 的所有数据
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    <Label className="text-xs">
-                      输入 <span className="font-mono font-semibold">删除</span> 以确认
-                    </Label>
-                    <Input
-                      placeholder="删除"
-                      value={deleteConfirmText}
-                      onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    />
-                  </div>
+                  <Input
+                    placeholder="如: id == 123"
+                    value={deleteFilter}
+                    onChange={(e) => setDeleteFilter(e.target.value)}
+                  />
+                  <Input
+                    placeholder="输入 删除 以确认"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  />
                   <Button
-                    onClick={handleDelete}
-                    disabled={deleting || !deleteFilter.trim() || deleteConfirmText.trim() !== "删除"}
+                    onClick={() => void handleDelete()}
+                    disabled={
+                      deleting || !deleteFilter.trim() || deleteConfirmText.trim() !== "删除"
+                    }
                     variant="destructive"
                     className="w-full"
                   >
@@ -1124,260 +578,44 @@ export function DataExplorerPage() {
               </DialogContent>
             </Dialog>
 
-            {filter ? (
-              <span className="text-xs text-muted-foreground truncate">
-                {filter}
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                无筛选条件
-              </span>
-            )}
+            <span className="text-xs text-muted-foreground">
+              {filter || "无筛选条件"}
+            </span>
           </div>
 
-          {/* Data table (virtualized) */}
-          <div ref={tableRef} className="flex-1 overflow-auto">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">加载中...</p>
-              </div>
-            ) : loadError ? (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-6">
-                <p className="text-sm font-medium text-destructive">数据加载失败</p>
-                <p className="text-sm text-muted-foreground max-w-md">{loadError}</p>
-                <Button size="sm" variant="outline" onClick={() => void loadData()}>
-                  重试
-                </Button>
-              </div>
-            ) : rows.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-6">
-                <p className="text-sm text-muted-foreground">
-                  {filter
-                    ? "当前筛选条件下没有匹配数据"
-                    : "集合中暂无数据"}
-                </p>
-                {filter && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setFilter("");
-                      setPage(0);
-                      void loadData();
-                    }}
-                  >
-                    清除筛选
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="min-w-max">
-                {/* Header */}
-                <div
-                  className="sticky top-0 z-10 grid bg-background border-b"
-                  style={{ gridTemplateColumns: gridTemplate }}
-                >
-                  {columns.map((col) => (
-                    <div
-                      key={col}
-                      className="relative px-3 py-2 text-left font-medium text-muted-foreground truncate select-none"
-                      title={col}
-                    >
-                      {col}
-                      <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary"
-                        onMouseDown={(e) => startColumnResize(col, e)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Virtualized body */}
-                <div
-                  style={{
-                    height: `${rowVirtualizer.getTotalSize()}px`,
-                    width: "100%",
-                    position: "relative",
-                  }}
-                >
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const row = rows[virtualRow.index];
-                    if (!row) return null;
-                    return (
-                      <div
-                        key={virtualRow.key}
-                        data-index={virtualRow.index}
-                        ref={rowVirtualizer.measureElement}
-                        className="absolute top-0 left-0 w-full grid border-b hover:bg-accent/50 cursor-pointer"
-                        style={{
-                          height: ROW_HEIGHT,
-                          transform: `translateY(${virtualRow.start}px)`,
-                          gridTemplateColumns: gridTemplate,
-                        }}
-                        onClick={() => setSelectedRow(row)}
-                      >
-                        {columns.map((col) => (
-                          <div
-                            key={col}
-                            className="px-3 py-2 truncate text-sm"
-                            title={formatValue(row[col])}
-                          >
-                            {formatValue(row[col])}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Pagination */}
-          <div className="border-t p-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">每页</Label>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => {
-                  setPageSize(Number(v));
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger className="w-20 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                  <SelectItem value="200">200</SelectItem>
-                </SelectContent>
-              </Select>
-              <span className="text-xs text-muted-foreground">
-                第 {page + 1} 页 · {rows.length} 条
-                {total !== null && !filter ? ` · 共 ${total.toLocaleString()} 条` : ""}
-              </span>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={page === 0}
-                onClick={() => setPage(page - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={
-                  total !== null && !filter
-                    ? (page + 1) * pageSize >= total
-                    : rows.length < pageSize
-                }
-                onClick={() => setPage(page + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            loading={loading}
+            loadError={loadError}
+            filter={filter}
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onSelectRow={setSelectedRow}
+            onRetry={() => void loadData()}
+            onClearFilter={() => {
+              setFilter("");
+              setPage(0);
+              void loadData();
+            }}
+            onPageChange={setPage}
+          />
         </div>
 
-        {/* Detail panel */}
-        {selectedRow && (
-          <>
-            {/* Drag handle */}
-            <div
-              className="w-1 cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors shrink-0"
-              onMouseDown={startDrag}
-            />
-            <div
-              className="border-l overflow-auto shrink-0"
-              style={{ width: detailWidth }}
-            >
-            <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between">
-              <h3 className="font-semibold">行详情</h3>
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      JSON.stringify(selectedRow, null, 2)
-                    );
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setSelectedRow(null)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="p-4 space-y-3">
-              {Object.entries(selectedRow).map(([key, value]) => (
-                <div key={key} className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">
-                      {key}
-                    </Label>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-5 w-5 p-0"
-                      onClick={() =>
-                        navigator.clipboard.writeText(
-                          typeof value === "object"
-                            ? JSON.stringify(value)
-                            : String(value)
-                        )
-                      }
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <div className="text-sm bg-muted rounded overflow-auto max-h-60">
-                    {Array.isArray(value) && value.length > 0 && typeof value[0] === "number" ? (
-                      // Vector field - show compact preview
-                      <div className="font-mono p-2">
-                        {value.length > 20
-                          ? `[${value.length} 维向量] 前20维: [${value
-                              .slice(0, 20)
-                              .map((v: number) => v.toFixed(4))
-                              .join(", ")}...]`
-                          : `[${value
-                              .map((v: number) =>
-                                typeof v === "number" ? v.toFixed(4) : v
-                              )
-                              .join(", ")}]`}
-                      </div>
-                    ) : typeof value === "object" && value !== null ? (
-                      // JSON object/array - use tree viewer
-                      <div className="p-2">
-                        <JsonViewer data={value} defaultExpanded={true} />
-                      </div>
-                    ) : (
-                      // Scalar value
-                      <div className="font-mono p-2">
-                        {String(value ?? "—")}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            </div>
-          </>
-        )}
+        {selectedRow && <RowDetailPanel row={selectedRow} onClose={() => setSelectedRow(null)} />}
       </div>
+
+      <EvaluateDialog
+        open={evalOpen}
+        onOpenChange={setEvalOpen}
+        connectionId={activeConnectionId}
+        collectionName={selectedCollection}
+        database={selectedDatabase}
+        vectorField={searchField}
+        metricType={metricType}
+        embeddingConfig={embeddingConfig}
+      />
     </div>
   );
 }

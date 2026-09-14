@@ -57,7 +57,8 @@ export async function databaseRoutes(app: FastifyInstance) {
     }
   );
 
-  // Use/switch database
+  // Use/switch database — deprecated: pass db_name on collection/data APIs instead.
+  // Kept for older clients; still mutates client-global state and may race.
   app.post<{ Body: { connectionId: string; dbName: string } }>(
     "/databases/use",
     async (req, reply): Promise<ApiResponse> => {
@@ -65,7 +66,14 @@ export async function databaseRoutes(app: FastifyInstance) {
         const { connectionId, dbName } = req.body;
         const client = getClient(connectionId);
         await client.use({ db_name: dbName });
-        return { success: true, data: { activeDb: dbName } };
+        return {
+          success: true,
+          data: {
+            activeDb: dbName,
+            deprecated: true,
+            hint: "请改用各接口的 db query/body 参数",
+          },
+        };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to switch database";
         return reply.code(500).send({ success: false, error: message });

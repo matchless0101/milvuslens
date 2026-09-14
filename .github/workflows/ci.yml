@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feat/core-features]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter @milvuslens/shared build
+
+      - name: Start API server
+        run: |
+          pnpm --filter @milvuslens/server exec tsx src/index.ts > /tmp/milvuslens-server.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:3001/api/connections >/dev/null 2>&1; then
+              echo "server ready"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:3001/api/connections
+          echo
+          echo "--- server log ---"
+          tail -n 40 /tmp/milvuslens-server.log || true
+
+      - name: API smoke
+        run: pnpm smoke
+        env:
+          API_BASE: http://127.0.0.1:3001
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter @milvuslens/shared build
+
+      - name: Start Milvus standalone
+        run: |
+          docker run -d --name milvus-ci \
+            -p 19530:19530 -p 9091:9091 \
+            -e ETCD_USE_EMBED=true \
+            -e COMMON_STORAGETYPE=local \
+            milvusdb/milvus:v2.5.14 \
+            milvus run standalone
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:9091/healthz >/dev/null 2>&1; then
+              echo "milvus ready"
+              break
+            fi
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:9091/healthz
+          echo
+
+      - name: Integration RAG (insert + search self-hit)
+        run: pnpm test:integration
+        env:
+          MILVUS_ADDRESS: 127.0.0.1:19530
+          COLLECTION: ci_it_chunks
+
+      - name: Milvus logs on failure
+        if: failure()
+        run: docker logs milvus-ci --tail 80 || true

@@ -1,0 +1,89 @@
+import { MilvusClient, DataType } from "@zilliz/milvus2-sdk-node";
+import type { ClientConfig } from "@zilliz/milvus2-sdk-node";
+import type { ConnectionConfig } from "@milvuslens/shared";
+import { randomUUID } from "crypto";
+
+// In-memory connection store: connectionId -> { client, config }
+const connections = new Map<
+  string,
+  { client: MilvusClient; config: ConnectionConfig }
+>();
+
+function buildAddress(config: ConnectionConfig): string {
+  // If host already contains a port (e.g. "39.97.251.27:19530"), use it as-is
+  if (config.host.includes(":")) {
+    return config.host;
+  }
+  return `${config.host}:${config.port}`;
+}
+
+function buildClientConfig(config: ConnectionConfig): ClientConfig {
+  const clientConfig: Record<string, unknown> = {
+    address: buildAddress(config),
+  };
+
+  if (config.token) {
+    clientConfig.token = config.token;
+  } else if (config.username && config.password) {
+    clientConfig.username = config.username;
+    clientConfig.password = config.password;
+  }
+
+  if (config.tls) {
+    clientConfig.ssl = true;
+  }
+
+  return clientConfig as unknown as ClientConfig;
+}
+
+export function createConnection(config: ConnectionConfig): string {
+  const connectionId = randomUUID();
+  const client = new MilvusClient(buildClientConfig(config));
+  connections.set(connectionId, { client, config });
+  return connectionId;
+}
+
+export function getClient(connectionId: string): MilvusClient {
+  const conn = connections.get(connectionId);
+  if (!conn) {
+    throw new Error(`Connection not found: ${connectionId}`);
+  }
+  return conn.client;
+}
+
+export function disconnect(connectionId: string): boolean {
+  const conn = connections.get(connectionId);
+  if (!conn) return false;
+  // Fire-and-forget close; do not block the route on pool drain
+  void Promise.resolve(conn.client.closeConnection()).catch(() => {});
+  return connections.delete(connectionId);
+}
+
+export function listConnections(): Array<{
+  connectionId: string;
+  config: Omit<ConnectionConfig, "password" | "token">;
+}> {
+  return Array.from(connections.entries()).map(([id, { config }]) => {
+    const { password: _pw, token: _token, ...safe } = config;
+    return { connectionId: id, config: safe };
+  });
+}
+
+export async function testConnection(
+  config: ConnectionConfig
+): Promise<{ ok: boolean; error?: string }> {
+  const client = new MilvusClient(buildClientConfig(config));
+  try {
+    // listDatabases is more universally supported than checkHealth
+    await client.listDatabases();
+    return { ok: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  } finally {
+    // Always tear down the probe client so tests don't leak channels
+    void Promise.resolve(client.closeConnection()).catch(() => {});
+  }
+}
+
+export { DataType };

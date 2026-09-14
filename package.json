@@ -1,0 +1,28 @@
+{
+  "name": "milvuslens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A lightweight open-source Milvus management tool",
+  "scripts": {
+    "dev": "pnpm --filter @milvuslens/shared build && pnpm --parallel --filter @milvuslens/server --filter @milvuslens/web dev",
+    "dev:server": "pnpm --filter @milvuslens/shared build && pnpm --filter @milvuslens/server dev",
+    "dev:web": "pnpm --filter @milvuslens/web dev",
+    "build": "pnpm --filter @milvuslens/shared build && pnpm --filter @milvuslens/server build && pnpm --filter @milvuslens/web build",
+    "start:server": "pnpm --filter @milvuslens/server start",
+    "lint": "eslint apps packages",
+    "typecheck": "pnpm --filter @milvuslens/shared build && pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "smoke": "node scripts/smoke-api.mjs",
+    "smoke:rag": "node scripts/local-rag-test.mjs",
+    "test:integration": "node scripts/integration-rag.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
+  }
+}

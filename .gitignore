@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.vite/
+*.local
+.DS_Store
+
+server.log
+web.log
+server-test.log
+server-test.err.log
+*.log

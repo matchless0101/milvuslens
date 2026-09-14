@@ -9,3 +9,6 @@ web.log
 server-test.log
 server-test.err.log
 *.log
+
+# local preview artifacts
+milvuslens-architecture.html

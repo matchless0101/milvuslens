@@ -7,6 +7,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Always use shared TypeScript source in the browser bundle
+      "@milvuslens/shared": path.resolve(
+        __dirname,
+        "../../packages/shared/src/index.ts"
+      ),
     },
   },
   server: {

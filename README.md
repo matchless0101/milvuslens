@@ -190,6 +190,7 @@ Fastify (127.0.0.1:3001)
 ## 文档与贡献
 
 - 贡献指南：[CONTRIBUTING.md](./CONTRIBUTING.md)  
+- **维护手册**（架构、排障、检查清单）：[docs/MAINTENANCE.md](./docs/MAINTENANCE.md)  
 - 发现问题请提 [Issue](https://github.com/matchless0101/milvuslens/issues)  
 - 欢迎 PR：从 `main` 拉分支，提交前请跑 `pnpm typecheck && pnpm lint && pnpm test`
 

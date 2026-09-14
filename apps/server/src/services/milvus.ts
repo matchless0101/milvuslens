@@ -61,12 +61,12 @@ export function disconnect(connectionId: string): boolean {
 
 export function listConnections(): Array<{
   connectionId: string;
-  config: Omit<ConnectionConfig, "password">;
+  config: Omit<ConnectionConfig, "password" | "token">;
 }> {
-  return Array.from(connections.entries()).map(([id, { config }]) => ({
-    connectionId: id,
-    config: { ...config, password: undefined },
-  }));
+  return Array.from(connections.entries()).map(([id, { config }]) => {
+    const { password: _pw, token: _token, ...safe } = config;
+    return { connectionId: id, config: safe };
+  });
 }
 
 export async function testConnection(

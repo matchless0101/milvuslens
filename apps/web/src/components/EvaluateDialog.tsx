@@ -97,12 +97,11 @@ export function EvaluateDialog({
     setRows([]);
     setSummary("");
 
-    const out: EvalRow[] = [];
-    for (const c of cases) {
+    const runOne = async (c: { q: string; expected: string }): Promise<EvalRow> => {
       try {
         const embedRes = await api.embed(c.q, embeddingConfig);
         if (!embedRes.success) {
-          out.push({
+          return {
             question: c.q,
             expectedId: c.expected,
             hit1: false,
@@ -112,8 +111,7 @@ export function EvaluateDialog({
             topScore: 0,
             rank: null,
             error: translateError(embedRes.error),
-          });
-          continue;
+          };
         }
         const embedding = (embedRes.data as EmbedResponse).embedding;
         const searchRes = await api.searchData(
@@ -129,7 +127,7 @@ export function EvaluateDialog({
           database || undefined
         );
         if (!searchRes.success) {
-          out.push({
+          return {
             question: c.q,
             expectedId: c.expected,
             hit1: false,
@@ -139,21 +137,17 @@ export function EvaluateDialog({
             topScore: 0,
             rank: null,
             error: translateError(searchRes.error),
-          });
-          continue;
+          };
         }
         const hits =
-          (searchRes.data as Array<{
-            id: string | number;
-            score: number;
-          }>) || [];
+          (searchRes.data as Array<{ id: string | number; score: number }>) || [];
         const top = hits[0];
         let rank: number | null = null;
         if (c.expected) {
           const i = hits.findIndex((h) => String(h.id) === c.expected);
           rank = i >= 0 ? i + 1 : null;
         }
-        out.push({
+        return {
           question: c.q,
           expectedId: c.expected,
           hit1: c.expected ? rank === 1 : hits.length > 0,
@@ -162,9 +156,9 @@ export function EvaluateDialog({
           topId: top ? String(top.id) : "",
           topScore: top ? Number(top.score) : 0,
           rank,
-        });
+        };
       } catch (e) {
-        out.push({
+        return {
           question: c.q,
           expectedId: c.expected,
           hit1: false,
@@ -174,9 +168,24 @@ export function EvaluateDialog({
           topScore: 0,
           rank: null,
           error: e instanceof Error ? e.message : String(e),
-        });
+        };
       }
-    }
+    };
+
+    // Limited concurrency — keeps order, avoids hammering embed+search
+    const CONCURRENCY = 4;
+    const out: EvalRow[] = new Array(cases.length);
+    let next = 0;
+    const workers = Array.from(
+      { length: Math.min(CONCURRENCY, cases.length) },
+      async () => {
+        while (next < cases.length) {
+          const i = next++;
+          out[i] = await runOne(cases[i]);
+        }
+      }
+    );
+    await Promise.all(workers);
 
     const withExpected = out.filter((r) => r.expectedId);
     const n = withExpected.length;

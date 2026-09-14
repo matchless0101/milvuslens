@@ -30,6 +30,13 @@ export async function tryAutoReconnect(): Promise<boolean> {
 
     const serverId = (res.data as { connectionId: string }).connectionId;
     const saved: ConnectionConfig = { ...config, id: serverId };
+    // Avoid piling up duplicate entries for the same host:port
+    const existing = store.connections.find(
+      (c) => c.host === saved.host && c.port === saved.port
+    );
+    if (existing && existing.id !== serverId) {
+      store.removeConnection(existing.id);
+    }
     store.addConnection(saved);
     store.setActiveConnection(serverId);
     store.setLastConnection(saved);
